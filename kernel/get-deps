@@ -7,6 +7,10 @@ test -z "$srcdir" && srcdir=.
 
 cd "$srcdir"
 
+# 定义依赖文件夹
+DEPS_DIR="deps"
+mkdir -p "$DEPS_DIR"
+
 clone_repo_commit() {
     if test -d "$2/.git"; then
         git -C "$2" reset --hard
@@ -33,17 +37,17 @@ rm -f .deps-obtained
 
 clone_repo_commit \
     https://codeberg.org/OSDev/freestnd-c-hdrs-0bsd.git \
-    freestnd-c-hdrs \
+    "$DEPS_DIR/freestnd-c-hdrs" \
     5df91dd7062ad0c54f5ffd86193bb9f008677631
 
 clone_repo_commit \
     https://codeberg.org/OSDev/cc-runtime.git \
-    cc-runtime \
+    "$DEPS_DIR/cc-runtime" \
     dae79833b57a01b9fd3e359ee31def69f5ae899b
 
 clone_repo_commit \
     https://codeberg.org/Limine/limine-protocol.git \
-    limine-protocol \
+    "$DEPS_DIR/limine-protocol" \
     c4616df2572d77c60020bdefa617dd9bdcc6566a
 
 touch .deps-obtained
