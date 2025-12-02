@@ -1,5 +1,4 @@
-build/
-dist/
-*.o
-*.elf
+limine/
 *.iso
+kernel/bin
+kernel/obj
