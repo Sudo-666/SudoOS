@@ -4,8 +4,22 @@
 override OUTPUT := kernel
 
 # User controllable toolchain and toolchain prefix.
-TOOLCHAIN :=
-TOOLCHAIN_PREFIX :=
+
+
+# 检查操作系统
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Darwin)  # macOS
+    TOOLCHAIN := x86_64-elf
+    TOOLCHAIN_PREFIX := x86_64-elf-
+endif
+
+ifeq ($(UNAME_S),Linux)  # Linux
+    TOOLCHAIN := 
+    TOOLCHAIN_PREFIX := 
+endif
+
+
 ifneq ($(TOOLCHAIN),)
     ifeq ($(TOOLCHAIN_PREFIX),)
         TOOLCHAIN_PREFIX := $(TOOLCHAIN)-
