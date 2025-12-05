@@ -2,3 +2,4 @@ boot/limine/
 *.iso
 kernel/bin
 kernel/obj
+kernel/deps

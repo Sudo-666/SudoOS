@@ -84,13 +84,13 @@ boot/limine:
 	fi
 
 
-# # # 运行脚本获取内核依赖。
-# kernel/.deps-obtained:
-# 	./kernel/get-deps
+# 运行脚本获取内核依赖。
+kernel/.deps-obtained:
+	./kernel/get-deps
 
 # 编译内核。
 .PHONY: kernel
-kernel: # kernel/.deps-obtained
+kernel:  kernel/.deps-obtained
 	$(MAKE) -C kernel
 
 # ISO镜像构建

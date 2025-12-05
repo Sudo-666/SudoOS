@@ -1,12 +1,13 @@
 .SUFFIXES:
 
-# 输出文件明
+##############
+# 输出文件名
+##############
+
 override OUTPUT := kernel
 
 # User controllable toolchain and toolchain prefix.
-
-
-# 检查操作系统
+# 检查操作系统,确定工具链
 UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S),Darwin)  # macOS
@@ -33,14 +34,18 @@ else
     CC := cc
 endif
 
-# User controllable linker command.
+# 选择连接器
 LD := $(TOOLCHAIN_PREFIX)ld
 
-# Defaults overrides for variables if using "llvm" as toolchain.
+# llvm处理
 ifeq ($(TOOLCHAIN),llvm)
     CC := clang
     LD := ld.lld
 endif
+
+#################
+# 设置参数
+#################
 
 # User controllable C flags.
 CFLAGS := -g -O2 -pipe
@@ -54,7 +59,7 @@ NASMFLAGS := -g
 # User controllable linker flags. We set none by default.
 LDFLAGS :=
 
-# Check if CC is Clang.
+# Clang检测和配置
 override CC_IS_CLANG := $(shell ! $(CC) --version 2>/dev/null | grep -q '^Target: '; echo $$?)
 
 # If the C compiler is Clang, set the target as needed.
@@ -108,7 +113,8 @@ override LDFLAGS += \
     -T linker.lds
 
 # Use "find" to glob all *.c, *.S, and *.asm files in the tree and obtain the
-# object and header dependency file names.
+
+# 收集源文件
 override SRCFILES := $(shell find -L src -type f 2>/dev/null | LC_ALL=C sort)
 override CFILES := $(filter %.c,$(SRCFILES))
 override ASFILES := $(filter %.S,$(SRCFILES))

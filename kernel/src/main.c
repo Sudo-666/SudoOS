@@ -2,6 +2,10 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "limine.h"
+#include "drivers/console.h"
+#include "drivers/keyboard.h"
+#include "lib/string.h"
+
 
 /**
  * @brief 声明limine版本号
@@ -16,7 +20,21 @@ __attribute__((used, section(".limine_requests"))) static volatile uint64_t limi
 
 __attribute__((used, section(".limine_requests"))) static volatile struct limine_framebuffer_request framebuffer_request = {
     .id = LIMINE_FRAMEBUFFER_REQUEST_ID,
-    .revision = 0};
+    .revision = 0
+};
+
+
+/**
+ * @brief 请求memmap，获取物理内存探测表
+ * 
+ */
+__attribute__((section(".limine_requests")))
+static volatile struct limine_memmap_request memmap_request = {
+    .id = LIMINE_MEMMAP_REQUEST_ID,
+    .revision = 0
+};
+
+
 
 /**
  * @brief  声明limine请求区头尾，使得limine在内核运行前处理请求区的所有请求
@@ -28,96 +46,6 @@ __attribute__((used, section(".limine_requests_start"))) static volatile uint64_
 __attribute__((used, section(".limine_requests_end"))) static volatile uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
 /**
- * @brief 将src开始的n个字节复制到dest处
- *
- * @param dest
- * @param src
- * @param n
- * @return void*
- */
-void *memcpy(void *restrict dest, const void *restrict src, size_t n)
-{
-    uint8_t *pdest = (uint8_t *)dest;
-    const uint8_t *psrc = (const uint8_t *)src;
-    for (size_t i = 0; i < n; i++)
-    {
-        pdest[i] = psrc[i];
-    }
-    return dest;
-}
-
-/**
- * @brief 将src开始的n个字节全都赋值成c
- *
- * @param src
- * @param c
- * @param n
- * @return void*
- */
-void *memset(void *src, int c, size_t n)
-{
-    uint8_t *p = (uint8_t *)src;
-    for (size_t i = 0; i < n; i++)
-    {
-        p[i] = (uint8_t)c;
-    }
-    return src;
-}
-
-/**
- * @brief 将src开始的n个字节移动到dest处，允许内存重叠
- *
- * @param dest
- * @param src
- * @param n
- * @return void*
- */
-void *memmove(void *dest, const void *src, size_t n)
-{
-    uint8_t *pdest = (uint8_t *)dest;
-    const uint8_t *psrc = (const uint8_t *)src;
-    if (dest < src)
-    {
-        for (size_t i = 0; i < n; i++)
-        {
-            pdest[i] = psrc[i];
-        }
-    }
-    else if (dest > src)
-    {
-        for (size_t i = n; i > 0; i--)
-        {
-            pdest[i-1] = psrc[i-1];
-        }
-    }
-    return dest;
-}
-
-/**
- * @brief 逐字节比较两块内存区域s1,s2开始的n个字节的内容。
- *
- * @param s1
- * @param s2
- * @param n
- * @return int :0 (s1==s2)；-1 (s1<s2)；1 (s1>s2)
- *
- */
-int memcmp(const void *s1, const void *s2, size_t n)
-{
-    const uint8_t *ps1 = (const uint8_t *)s1;
-    const uint8_t *ps2 = (const uint8_t *)s2;
-    for (size_t i = 0; i < n; i++)
-    {
-        if (ps1[i] != ps2[i])
-        {
-            return ps1[i] < ps2[i] ? -1 : 1;
-        }
-    }
-    return 0;
-}
-
-
-/**
  * @brief  让 CPU 完全停止
  * 
  */
@@ -127,6 +55,75 @@ static void hcf(void)
         asm("hlt");
     }
 }
+
+
+const char* memtype2str(uint64_t type) {
+    switch (type)
+    {
+    case LIMINE_MEMMAP_USABLE:
+    return "USABLE";
+        break;
+    case LIMINE_MEMMAP_RESERVED:
+    return "RESERVED";
+        break;
+    case LIMINE_MEMMAP_ACPI_RECLAIMABLE:
+    return "ACPI_RECLAIMABLE";
+        break;
+    case LIMINE_MEMMAP_ACPI_NVS:
+    return "ACPI_NVS";
+        break;
+    case LIMINE_MEMMAP_BAD_MEMORY:
+    return "BAD_MEMORY";
+        break;
+    case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE:
+    return "BOOTLOADER_RECLAIMABLE";
+        break;
+    case LIMINE_MEMMAP_EXECUTABLE_AND_MODULES:
+    return "EXECUTABLE_AND_MODULES";
+        break;
+    case LIMINE_MEMMAP_FRAMEBUFFER:
+    return "MEMMAP_FRAMEBUFFER";
+        break;
+    case LIMINE_MEMMAP_ACPI_TABLES:
+    return "ACPI_TABLES";
+        break;
+    }
+    return "UNKNOWN";
+}
+
+
+/**
+ * @brief 
+ * 
+ * @param mmap 
+ */
+void debug_memmap(struct limine_memmap_response *mmap) {
+    if (!mmap) {
+        kprintln("Memmap request failed!");
+        return;
+    }
+
+    kprintln("=== LIMINE MEMORY MAP ===");
+    uint64_t i = 0;
+    for(;i<mmap->entry_count;i++) {
+        struct limine_memmap_entry *e = mmap->entries[i];
+
+        char idx_buf[32];
+        char base_buf[32];
+        char len_buf[32];
+
+        kprint("Entry ");
+        kprint(itoa((int)i,idx_buf,10));
+        kprint(":");
+        kprint(" base=");
+        kprint(itoa((int)e->base, base_buf, 16));
+        kprint(" size=");
+        kprint(itoa((int)e->length, len_buf, 16));
+        kprint(" type=");
+        kprintln(memtype2str(e->type));
+    }
+}
+
 
 /**
  * @brief 入口
@@ -148,14 +145,16 @@ void kmain(void) {
     // 获取到第一个显存信息
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
 
-    // Note: we assume the framebuffer model is RGB with 32-bit pixels.
-    // 随便画点东西
-    for (size_t i = 0; i < 100; i++) {
-        volatile uint32_t *fb_ptr = framebuffer->address;
-        fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
-    }
+    // 初始化控制台
+    console_init(framebuffer);
+    
+    // 获取memmap
+    struct limine_memmap_response *mmap = memmap_request.response;
 
-    // We're done, just hang...
+    debug_memmap(mmap);
+
+
     hcf();
 
+ 
 }

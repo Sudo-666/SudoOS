@@ -10,6 +10,43 @@
 - 内核地址空间：0xffffffff80000000 ~ 0xffffffffffffffff
 
 
+# 内存管理系统
+
+## 初始化内存管理系统
+
+- 读取memmap（物理内存探测），检测物理内存的情况
+- memmap结构
+```c
+struct limine_memmap_response {
+    uint64_t entry_count;             // 条目数量
+    struct limine_memmap_entry **entries; // 指向 entries[] 数组
+};
+
+struct limine_memmap_entry {
+    uint64_t base;    // 物理地址起点
+    uint64_t length;  // 长度
+    uint64_t type;    // 区域类型
+};
+
+```
+- 物理内存的类型
+```c
+LIMINE_MEMMAP_USABLE               // 可以用来分配给物理内存管理
+LIMINE_MEMMAP_RESERVED             // 不可用（可能被固件、BIOS 占用）
+LIMINE_MEMMAP_ACPI_RECLAIMABLE     // ACPI 信息区，可在解析 ACPI 后使用
+LIMINE_MEMMAP_ACPI_NVS             // ACPI NVS（不可动）
+LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE
+LIMINE_MEMMAP_KERNEL_AND_MODULES   // 内核自身所在内存
+LIMINE_MEMMAP_FRAMEBUFFER          // 显存
+```
+
+
+
+
+
+
+
+
 ---
 # 运行
 
