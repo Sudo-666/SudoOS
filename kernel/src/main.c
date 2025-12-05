@@ -57,41 +57,6 @@ static void hcf(void)
 }
 
 
-const char* memtype2str(uint64_t type) {
-    switch (type)
-    {
-    case LIMINE_MEMMAP_USABLE:
-    return "USABLE";
-        break;
-    case LIMINE_MEMMAP_RESERVED:
-    return "RESERVED";
-        break;
-    case LIMINE_MEMMAP_ACPI_RECLAIMABLE:
-    return "ACPI_RECLAIMABLE";
-        break;
-    case LIMINE_MEMMAP_ACPI_NVS:
-    return "ACPI_NVS";
-        break;
-    case LIMINE_MEMMAP_BAD_MEMORY:
-    return "BAD_MEMORY";
-        break;
-    case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE:
-    return "BOOTLOADER_RECLAIMABLE";
-        break;
-    case LIMINE_MEMMAP_EXECUTABLE_AND_MODULES:
-    return "EXECUTABLE_AND_MODULES";
-        break;
-    case LIMINE_MEMMAP_FRAMEBUFFER:
-    return "MEMMAP_FRAMEBUFFER";
-        break;
-    case LIMINE_MEMMAP_ACPI_TABLES:
-    return "ACPI_TABLES";
-        break;
-    }
-    return "UNKNOWN";
-}
-
-
 /**
  * @brief 
  * 
@@ -110,6 +75,7 @@ void debug_memmap(struct limine_memmap_response *mmap) {
     uint64_t unusablemm = 0;
     for(;i<mmap->entry_count;i++) {
         struct limine_memmap_entry *e = mmap->entries[i];
+
         totalmm+=e->length;
         if(e->type == LIMINE_MEMMAP_USABLE) {
             usablemm+=e->length;
