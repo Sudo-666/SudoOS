@@ -118,7 +118,7 @@ void debug_memmap(struct limine_memmap_response *mmap) {
         kprint(" base=");
         kprint(itoa((int)e->base, base_buf, 16));
         kprint(" size=");
-        kprint(itoa((int)e->length, len_buf, 16));
+        kprint(itoa((int)e->length, len_buf, 10));
         kprint(" type=");
         kprintln(memtype2str(e->type));
     }
