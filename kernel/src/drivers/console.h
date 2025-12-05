@@ -11,3 +11,4 @@ void kprintln(const char* str);     // 打印并换行
 void kprint_int(int val);           // 打印整数
 void kclear();                      // 清屏
 void kprint_char(char c);           // 打印单个字符
+void kprint_uint64(uint64_t val);   // 打印64位整数

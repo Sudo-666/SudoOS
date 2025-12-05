@@ -105,3 +105,9 @@ void kprint_int(int val) {
     itoa(val, buf,10);
     kprint(buf);
 }
+
+void kprint_uint64(uint64_t val){
+    char buf[64];
+    itoa(val, buf,10);
+    kprint(buf);
+}
