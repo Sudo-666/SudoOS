@@ -105,23 +105,40 @@ void debug_memmap(struct limine_memmap_response *mmap) {
 
     kprintln("=== LIMINE MEMORY MAP ===");
     uint64_t i = 0;
+    uint64_t totalmm = 0;
+    uint64_t usablemm = 0;
+    uint64_t unusablemm = 0;
     for(;i<mmap->entry_count;i++) {
         struct limine_memmap_entry *e = mmap->entries[i];
+        totalmm+=e->length;
+        if(e->type == LIMINE_MEMMAP_USABLE) {
+            usablemm+=e->length;
+        }
+        else {
+            unusablemm+=e->length;
+        }
 
         char idx_buf[32];
-        char base_buf[32];
-        char len_buf[32];
+        char base_buf[64];
+        char len_buf[64];
 
         kprint("Entry ");
-        kprint(itoa((int)i,idx_buf,10));
+        kprint_uint64(i);
         kprint(":");
         kprint(" base=");
-        kprint(itoa((int)e->base, base_buf, 16));
+        kprint(itoa_uint64(e->base, base_buf, 16));
         kprint(" size=");
-        kprint(itoa((int)e->length, len_buf, 10));
+        kprint(itoa_uint64(e->length, len_buf, 10));
         kprint(" type=");
         kprintln(memtype2str(e->type));
     }
+    char buf[64];
+    kprint("total memory: ");
+    kprintln(itoa_uint64(totalmm,buf,10));
+    kprint("usable memory: ");
+    kprintln(itoa_uint64(usablemm,buf,10));
+    kprint("unusable memory: ");
+    kprintln(itoa(unusablemm,buf,10));
 }
 
 

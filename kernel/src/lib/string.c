@@ -122,3 +122,47 @@ char *itoa(int value, char *buffer, int base) {
 
     return buffer;
 }
+
+char *itoa_uint64(uint64_t value, char *buffer, uint64_t base){
+    if (base < 2 || base > 16) {
+        buffer[0] = '\0';
+        return buffer;
+    }
+
+    static const char digits[] = "0123456789ABCDEF";
+    char temp[64];
+    int i = 0;
+    int is_negative = 0;
+
+    /* 处理10进制负数 */
+    if (value < 0 && base == 10) {
+        is_negative = 1;
+        value = -value;
+    }
+
+    /* 处理 0 */
+    if (value == 0) {
+        buffer[0] = '0';
+        buffer[1] = '\0';
+        return buffer;
+    }
+
+    /* 转换为倒序 */
+    while (value != 0) {
+        int rem = value % base;
+        temp[i++] = digits[rem];
+        value /= base;
+    }
+
+    if (is_negative)
+        temp[i++] = '-';
+
+    /* 倒序复制回 buffer */
+    int j = 0;
+    while (i > 0) {
+        buffer[j++] = temp[--i];
+    }
+    buffer[j] = '\0';
+
+    return buffer;
+}
