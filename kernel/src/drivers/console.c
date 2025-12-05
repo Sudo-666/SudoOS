@@ -1,9 +1,9 @@
 #include "console.h"
-#include "../lib/string.h"
 #include "font.h" 
+#include "../lib/string.h"
 
 // 全局变量定义
-static struct limine_framebuffer* g_fb = nullptr;
+static struct limine_framebuffer* g_fb = NULL;
 static int g_x = 0;
 static int g_y = 0;
 
@@ -102,6 +102,6 @@ void kprintln(const char* str) {
 // 打印整数
 void kprint_int(int val) {
     char buf[32];
-    itoa(val, buf);
+    itoa(val, buf,10);
     kprint(buf);
 }

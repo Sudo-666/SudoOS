@@ -1,5 +1,6 @@
 #include "keyboard.h"
-#include "../arch/io.h"
+#include "stdbool.h"
+#include "io.h"
 
 // 静态映射表
 static const char kmap_low[128] = {
