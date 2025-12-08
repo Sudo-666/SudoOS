@@ -1,5 +1,9 @@
 #include <stdint.h>
+#include "pmm.h"
 
+// 获取内核逻辑空间地址
+extern char __kernel_start[];
+extern char __kernel_end[];
 
 typedef uint64_t pte_t;
 typedef uint64_t pde_t;
@@ -80,3 +84,30 @@ typedef uint64_t pml4e_t;
 #define PT_IDX(va)    (((va) >> 12) & 0x1FF)
 // offset：    Bits 0-11
 #define OFFSET(va) (va & 0xFFF)
+
+// 一页4096B，一个指针64b=8B，一页共4096/8=512项页表项
+typedef struct {
+    pte_t entries[512];
+}__attribute__((aligned(PAGE_SIZE))) pg_table_t;
+
+/**
+ * @brief 获取下一级页表指针。如果 allocate=true 且不存在，则创建之。
+ * 
+ * @param pgtable 
+ * @param index 
+ * @param allocate 
+ * @return pg_table_t* 
+ */
+static pg_table_t* get_next_table(pg_table_t* pgtable, uint64_t index, bool allocate);
+
+
+/**
+ * @brief 映射虚拟地址到物理地址
+ * @param pml4 顶级页表虚拟地址
+ * @param virt 虚拟地址
+ * @param phys 物理地址
+ * @param flags 标志位 (PTE_RW, PTE_USER 等)
+ */
+void vmm_map_page(pg_table_t* pml4, uintptr_t va, uintptr_t pa, uint64_t flags);
+
+void paging_init(struct limine_memmap_response* mmap);

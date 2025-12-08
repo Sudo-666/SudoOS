@@ -78,7 +78,7 @@ void pmm_free_page(uint64_t pa);
 63          48 47     39 38     30 29     21 20     12 11         0
 +-------------+---------+---------+---------+---------+------------+
 | Sign Extend | PML4    | PDPT    | PD      | PT      | Offset     |
-| (不可用)     | Index   | Index   | Index   | Index   |            |
+| (不可用)    | Index   | Index   | Index   | Index   |            |
 +-------------+---------+---------+---------+---------+------------+
        |           |         |         |         |          |
     必须为全0      9 bits    9 bits    9 bits    9 bits     12 bits

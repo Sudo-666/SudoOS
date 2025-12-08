@@ -9,13 +9,14 @@ uint8_t* bitmap = NULL;             // 位图数组的虚拟地址
 size_t bitmap_size = 0;             // 位图占用的字节数
 size_t total_pages = 0;             // 物理内存总页数
 size_t free_pages = 0;              // 当前空闲页数（统计用）
+size_t last_free_index = 0;         // 优化变量，下次分配时从这里开始扫描
 
 /**
  * @brief 将bitmap的bit位设置成1
  * 
  * @param bit 
  */
-static inline void bit_set(size_t bit) {
+void bit_set(size_t bit) {
     bitmap[bit / 8] |= (1 << (bit % 8));
 }
 
@@ -25,7 +26,7 @@ static inline void bit_set(size_t bit) {
  * 
  * @param bit 
  */
-static inline void bit_unset(size_t bit) {
+void bit_unset(size_t bit) {
     bitmap[bit / 8] &= ~(1 << (bit % 8));
 }
 
@@ -106,14 +107,13 @@ void pmm_init(struct limine_memmap_response* mmap) {
     for(uint64_t i=0;i<mmap->entry_count;i++) {
         struct limine_memmap_entry *e = mmap->entries[i];
         if(e->type == LIMINE_MEMMAP_USABLE && e->length >= bitmap_size) {
-            bitmap_pa = (uintptr_t)e->base;
-
             // 实际上，为了对齐安全，最好把 bitmap_size 向上对齐到 PAGE_SIZE 再扣除
             // 这样保证剩下的内存也是页对齐的。
             size_t bitmap_pages = ALIGN_UP(bitmap_size, PAGE_SIZE) / PAGE_SIZE;
             size_t bitmap_reserved_size = bitmap_pages * PAGE_SIZE;
             // 更新块信息
             if (e->length >= bitmap_reserved_size) {
+                    bitmap_pa = (uintptr_t)e->base;
                  e->base += bitmap_reserved_size;
                  e->length -= bitmap_reserved_size;
                  break;
@@ -166,17 +166,18 @@ void pmm_init(struct limine_memmap_response* mmap) {
  * @return uint64_t 
  */
 uint64_t pmm_alloc_page() {
+
     // 0. 如果没有空闲页，直接返回，避免无效遍历
     // 1. 第一轮搜索：从上次的位置往后找
     // 2. 第二轮搜索：如果后面满了，回绕从头(0)找
     // 3. 真的找不到（虽然理论上前面判断了 free_pages > 0 不会进这里）
     
     if(free_pages == 0) {
-        return;
+        kprintln("ERROR: No free pages available for allocation!");
+        return 0;
     }
-    uint64_t ret_pa = 0;
     
-    for(size_t i = last_free_index;i<total_pages;i++) {
+    for(size_t i = last_free_index; i < total_pages; i++) {
         // 发现该位是 0 (Free)
         if(!bit_test(i)) {
             bit_set(i);
@@ -186,7 +187,7 @@ uint64_t pmm_alloc_page() {
         }
     }
 
-    for(size_t i = 0;i<last_free_index;i++) {
+    for(size_t i = 0; i < last_free_index; i++) {
         // 发现该位是 0 (Free)
         if(!bit_test(i)) {
             bit_set(i);
@@ -196,6 +197,7 @@ uint64_t pmm_alloc_page() {
         }
     }
 
+    kprintln("ERROR: Failed to allocate page (allocation loop failed)!");
     return 0;
 }
 
