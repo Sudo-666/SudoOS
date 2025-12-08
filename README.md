@@ -40,6 +40,17 @@ LIMINE_MEMMAP_KERNEL_AND_MODULES   // 内核自身所在内存
 LIMINE_MEMMAP_FRAMEBUFFER          // 显存
 ```
 
+## Bitmap
+
+- Bitmap每一项为`uint8_t`类型，对应8个物理页框，共`8*4kB` 大小。
+- 对Bitmap的bit位进行操作：
+```c
+static inline void bit_set(size_t bit);
+
+static inline void bit_unset(size_t bit);
+
+static inline bool bit_test(size_t bit);
+```
 
 
 

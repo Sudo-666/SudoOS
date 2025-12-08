@@ -102,13 +102,13 @@ void kprintln(const char* str) {
 // 打印整数
 void kprint_int(int val) {
     char buf[32];
-    itoa(val, buf,10);
+    itoa(val, buf, 10);
     kprint(buf);
 }
 
-void kprint_uint64(uint64_t val){
+void kprint_uint64(uint64_t val) {
     char buf[64];
-    itoa(val, buf,10);
+    itoa_uint64(val, buf, 10);
     kprint(buf);
 }
 
