@@ -111,3 +111,102 @@ void kprint_uint64(uint64_t val){
     itoa(val, buf,10);
     kprint(buf);
 }
+
+void kprint_hex(uint64_t n) {
+    const char *digits = "0123456789ABCDEF";
+    char buffer[17];
+    int i = 0;
+
+    if (n == 0) {
+        kprint("0");
+        return;
+    }
+
+    while (n > 0) {
+        buffer[i++] = digits[n % 16];
+        n /= 16;
+    }
+    for (int j = i - 1; j >= 0; j--) {
+        kprint_char(buffer[j]);
+    }
+}
+
+void kprintf(const char* format, ...) {
+    va_list args;
+    va_start(args, format); // 初始化参数列表
+
+    for (const char* p = format; *p != '\0'; p++) {
+        if (*p != '%') {
+            // 普通字符直接打印
+            kprint_char(*p);
+            continue;
+        }
+
+        // 遇到 %，查看下一个字符
+        p++; 
+        
+        switch (*p) {
+            case 'd': // 有符号整数 (int)
+            case 'i':
+                {
+                    int val = va_arg(args, int);
+                    kprint_int(val);
+                }
+                break;
+
+            case 'c': // 字符 (char)
+                {
+                    // 注意：在变长参数中，char 会自动提升为 int
+                    int val = va_arg(args, int);
+                    kprint_char((char)val);
+                }
+                break;
+
+            case 's': // 字符串 (string)
+                {
+                    const char* val = va_arg(args, const char*);
+                    if (val == NULL) {
+                        kprint("(null)");
+                    } else {
+                        kprint(val);
+                    }
+                }
+                break;
+
+            case 'x': // 十六进制 (hex) - 32位/64位通用
+            case 'p': // 指针 (pointer)
+                {
+                    uint64_t val = va_arg(args, uint64_t);
+                    if (*p == 'p') kprint("0x"); // 指针加个前缀
+                    kprint_hex(val);
+                }
+                break;
+
+            case 'l': // 长整型 (long) 处理
+                {
+                    // 检查下一个字符，支持 %ld 或 %lu
+                    p++;
+                    if (*p == 'u' || *p == 'd') {
+                        uint64_t val = va_arg(args, uint64_t);
+                        kprint_uint64(val);
+                    } else if (*p == 'x') {
+                        uint64_t val = va_arg(args, uint64_t);
+                        kprint_hex(val);
+                    }
+                }
+                break;
+            
+            case '%': // 打印 '%' 本身
+                kprint_char('%');
+                break;
+
+            default: 
+                // 不支持的格式，原样打印出来，方便调试
+                kprint_char('%');
+                kprint_char(*p);
+                break;
+        }
+    }
+
+    va_end(args); // 清理参数列表
+}
