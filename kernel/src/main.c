@@ -107,6 +107,7 @@ void kmain(void) {
     debug_memmap(mmap);
 
     pmm_init(mmap);
+    debug_bitmap();
 
     hcf();
 

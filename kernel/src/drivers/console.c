@@ -1,6 +1,7 @@
 #include "console.h"
 #include "font.h" 
 #include "../lib/string.h"
+#include <stdarg.h>
 
 // 全局变量定义
 static struct limine_framebuffer* g_fb = NULL;
@@ -148,6 +149,7 @@ void kprintf(const char* format, ...) {
         switch (*p) {
             case 'd': // 有符号整数 (int)
             case 'i':
+            case 'u': // 无符号整数 (uint)
                 {
                     int val = va_arg(args, int);
                     kprint_int(val);
@@ -174,6 +176,7 @@ void kprintf(const char* format, ...) {
                 break;
 
             case 'x': // 十六进制 (hex) - 32位/64位通用
+            
             case 'p': // 指针 (pointer)
                 {
                     uint64_t val = va_arg(args, uint64_t);
@@ -184,7 +187,7 @@ void kprintf(const char* format, ...) {
 
             case 'l': // 长整型 (long) 处理
                 {
-                    // 检查下一个字符，支持 %ld 或 %lu
+                    // 检查下一个字符，支持 %ld、%lu 或 %lx
                     p++;
                     if (*p == 'u' || *p == 'd') {
                         uint64_t val = va_arg(args, uint64_t);
