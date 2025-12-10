@@ -1,5 +1,6 @@
 #pragma once
 #include "../limine.h"
+#include "pmm.h"
 
 const char* memtype2str(uint64_t type);
 

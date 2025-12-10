@@ -7,6 +7,7 @@
 #include "lib/string.h"
 #include "mm/debug_mm.h"
 #include "mm/pmm.h"
+#include "mm/paging.h"
 
 /**
  * @brief 声明limine版本号
@@ -19,7 +20,6 @@ static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(4);
  * @brief 请求framebuffer显存
  *
  */
-
 __attribute__((used, section(".limine_requests"))) 
 static volatile struct limine_framebuffer_request framebuffer_request = {
     .id = LIMINE_FRAMEBUFFER_REQUEST_ID,
@@ -106,7 +106,11 @@ void kmain(void) {
    // 打印调试信息
     debug_memmap(mmap);
 
+    // 初始化pmm
     pmm_init(mmap);
+
+    // 初始化分页系统
+    paging_init(mmap);
 
     hcf();
 
