@@ -1,0 +1,58 @@
+#pragma once
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include "../limine.h"
+#include "../lib/string.h"
+
+// 设置页面大小
+#define PAGE_SIZE 4096
+
+// 向上取整：(x + 4095) & ~4095
+#define ALIGN_UP(addr, align)   (((addr) + (align) - 1) & ~((align) - 1))
+
+// 向下取整：x & ~4095
+#define ALIGN_DOWN(addr, align) ((addr) & ~((align) - 1))
+
+#define pa2pgidx(pa) (pa/PAGE_SIZE)
+
+#define pgidx2pa(pgidx) ( (uint64_t)(pgidx)*PAGE_SIZE)
+
+// hhdm偏移量
+extern uint64_t HHDM_OFFSET;
+
+// bitmap-pmm管理器
+// 全局变量
+extern uint8_t* bitmap;             // 位图数组的虚拟地址
+extern size_t bitmap_size;          // 位图占用的字节数
+extern size_t total_pages;          // 物理内存总页数
+extern size_t free_pages;           // 当前空闲页数（统计用）
+
+// 对bitmap的位操作
+extern bool bit_test(size_t bit);
+
+// 这是一个优化变量，下次分配时从这里开始扫描，避免每次都从头扫
+extern size_t last_free_index;
+
+// 初始化bitmap
+void pmm_init(struct limine_memmap_response* mmap);
+
+void pmm_set_free(uintptr_t pa,size_t pgnum);
+void pmm_set_busy(uintptr_t pa,size_t pgnum);
+
+// 内存分配接口
+
+/**
+ * @brief next_fit算法分配空闲物理页框
+ * 
+ * @return uint64_t 
+ */
+uint64_t pmm_alloc_page();
+
+
+/**
+ * @brief 释放物理地址pa对应的物理页框
+ * 
+ * @param pa 
+ */
+void pmm_free_page(uint64_t pa);

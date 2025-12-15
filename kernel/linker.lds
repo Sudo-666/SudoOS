@@ -35,6 +35,9 @@ SECTIONS
     在高半区（Higher Half）设置内核区域
     */
     . = 0xffffffff80000000;
+    
+    /* 定义内核开始符号 */
+    __kernel_start = .;
 
     /*
         .limine_requests 段 ：内核通过它向 Limine 传递请求
@@ -93,5 +96,8 @@ SECTIONS
         *(.eh_frame*)
         *(.note .note.*)
     }
+
+    /* 定义内核结束符号 */
+    __kernel_end = .;
 }
 

@@ -103,13 +103,13 @@ void kprintln(const char* str) {
 // 打印整数
 void kprint_int(int val) {
     char buf[32];
-    itoa(val, buf,10);
+    itoa(val, buf, 10);
     kprint(buf);
 }
 
-void kprint_uint64(uint64_t val){
+void kprint_uint64(uint64_t val) {
     char buf[64];
-    itoa(val, buf,10);
+    itoa_uint64(val, buf, 10);
     kprint(buf);
 }
 
@@ -149,6 +149,7 @@ void kprintf(const char* format, ...) {
         switch (*p) {
             case 'd': // 有符号整数 (int)
             case 'i':
+            case 'u': // 无符号整数 (uint)
                 {
                     int val = va_arg(args, int);
                     kprint_int(val);
@@ -175,6 +176,7 @@ void kprintf(const char* format, ...) {
                 break;
 
             case 'x': // 十六进制 (hex) - 32位/64位通用
+            
             case 'p': // 指针 (pointer)
                 {
                     uint64_t val = va_arg(args, uint64_t);
@@ -185,7 +187,7 @@ void kprintf(const char* format, ...) {
 
             case 'l': // 长整型 (long) 处理
                 {
-                    // 检查下一个字符，支持 %ld 或 %lu
+                    // 检查下一个字符，支持 %ld、%lu 或 %lx
                     p++;
                     if (*p == 'u' || *p == 'd') {
                         uint64_t val = va_arg(args, uint64_t);
