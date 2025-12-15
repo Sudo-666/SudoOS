@@ -3,6 +3,9 @@
 #include "lib/std.h"
 #include "../../usr/usrTest.c"
 #include "arch/idt.h"
+#include "mm/debug_mm.h"
+#include "mm/pmm.h"
+#include "mm/paging.h"
 
 
 /**
@@ -100,8 +103,6 @@ void kmain(void) {
     // 初始化控制台
     console_init(framebuffer);
     
-    // 获取memmap
-    struct limine_memmap_response *mmap = memmap_request.response;
 
     usrmain();
 
