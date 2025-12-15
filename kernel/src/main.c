@@ -1,10 +1,8 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
 #include "limine.h"
-#include "drivers/console.h"
-#include "drivers/keyboard.h"
-#include "lib/string.h"
+#include "drivers/drivers.h"
+#include "lib/std.h"
+#include "../../usr/usrTest.c"
+#include "arch/idt.h"
 
 
 /**
@@ -148,6 +146,7 @@ void debug_memmap(struct limine_memmap_response *mmap) {
  */
 void kmain(void) {
     
+    idt_init();
     // 确保版本正确
     if (LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision) == false) {
         hcf();
@@ -168,8 +167,9 @@ void kmain(void) {
     // 获取memmap
     struct limine_memmap_response *mmap = memmap_request.response;
 
-    debug_memmap(mmap);
+    usrmain();
 
+    debug_memmap(mmap);
 
     hcf();
 
