@@ -227,9 +227,11 @@ CR3 Register (存放 PML4 物理地址)
 
 
 ---
-# 运行
+# 在qemu上运行
 
 ```bash
 make run
 ```
+
+
 
