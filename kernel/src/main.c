@@ -1,13 +1,12 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
 #include "limine.h"
-#include "drivers/console.h"
-#include "drivers/keyboard.h"
-#include "lib/string.h"
+#include "drivers/drivers.h"
+#include "lib/std.h"
+#include "../../usr/usrTest.c"
+#include "arch/idt.h"
 #include "mm/debug_mm.h"
 #include "mm/pmm.h"
 #include "mm/paging.h"
+
 
 /**
  * @brief 声明limine版本号
@@ -78,6 +77,7 @@ static void hcf(void)
  */
 void kmain(void) {
     
+    idt_init();
     // 确保版本正确
     if (LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision) == false) {
         hcf();
@@ -103,14 +103,10 @@ void kmain(void) {
     // 初始化控制台
     console_init(framebuffer);
     
-   // 打印调试信息
+
+    usrmain();
+
     debug_memmap(mmap);
-
-    // 初始化pmm
-    pmm_init(mmap);
-
-    // 初始化分页系统
-    paging_init(mmap);
 
     hcf();
 
