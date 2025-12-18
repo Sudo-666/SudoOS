@@ -231,3 +231,11 @@ void pmm_free_page(uint64_t pa) {
     return;
 
 }
+
+
+static bool kheap_expand(size_t pgnum) {
+    for(size_t i=0;i<pgnum;i++) {
+        uint64_t pa = pmm_alloc_page();
+        if(pa==0) return false;
+    }
+} 

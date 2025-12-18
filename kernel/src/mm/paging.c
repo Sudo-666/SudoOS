@@ -3,9 +3,11 @@
 #include "../lib/string.h"
 #include "../arch/x86_64.h"
 
+// 将物理地址转换成虚拟地址
 #define pa2kva(pa) (pa+HHDM_OFFSET)
-#define kva2pa(kva) (kva-HHDM_OFFSET)
 
+// 全局内核 PML4 指针
+extern pg_table_t* kernel_pml4 = NULL;
 /**
  * @brief 获取下一级页表指针。如果 allocate=true 且不存在，则创建之。
  * 
@@ -83,8 +85,7 @@ static volatile struct limine_executable_address_request kernel_addr_request = {
 };
 
 
-// 全局内核 PML4 指针
-pg_table_t* kernel_pml4 = NULL;
+
 
 void paging_init(struct limine_memmap_response* mmap) {
     kprintln("===== Start init PAGING... =====");

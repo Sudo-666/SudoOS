@@ -10,6 +10,7 @@ typedef uint64_t pde_t;
 typedef uint64_t pdpte_t;
 typedef uint64_t pml4e_t;
 
+#define PAGE_SIZE 4096
 // ==========================================
 // 页表项标志位 (Page Table Entry Flags)
 // ==========================================
