@@ -34,9 +34,9 @@ static inline void __list_add(list_node_t *new_node, list_node_t *prev, list_nod
 
 /**
  * @brief 插入到某个节点之后
- * 
- * @param new_node 
- * @param head 
+ *  
+ * @param new_node list_node_t *
+ * @param head list_node_t *
  */
 static inline void list_add_after(list_node_t *new_node, list_node_t *head) {
     __list_add(new_node, head, head->next);

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdint.h>
 #include "pmm.h"
 
@@ -99,7 +101,7 @@ typedef struct {
  * @param allocate 
  * @return pg_table_t* 
  */
-static pg_table_t* get_next_table(pg_table_t* pgtable, uint64_t index, bool allocate);
+pg_table_t* get_next_table(pg_table_t* pgtable, uint64_t index, bool allocate);
 
 
 /**

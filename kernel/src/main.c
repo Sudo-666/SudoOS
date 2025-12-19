@@ -105,8 +105,8 @@ void kmain(void) {
     kprintf("HHDM OFFSET: %lx\n",HHDM_OFFSET);
     pmm_init(mmap);
     paging_init(mmap);
-
-    usrmain();
+    kheap_init(4);
+    //usrmain();
     hcf();
 
  

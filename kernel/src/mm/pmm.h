@@ -93,10 +93,19 @@ void pmm_free_page(uint64_t pa);
  */
 typedef struct {
     list_node_t node;
-    uint64_t size;
+    uint64_t size; // 空闲区大小
     bool is_free;
-} kheap_hdr_t;
+} kheap_pghdr_t;
 
-#define HEADER_SIZE sizeof(malloc_header_t)
 
-static bool kheap_expand(size_t pgnum);
+#define HEADER_SIZE sizeof(kheap_pghdr_t)
+#define MIN_SPLIT 16
+
+bool kheap_expand(size_t pgnum);
+
+void kheap_init(size_t init_pages);
+
+void* kmalloc(size_t size);
+
+void kfree(void* ptr);
+

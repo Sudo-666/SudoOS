@@ -7,7 +7,7 @@
 #define pa2kva(pa) (pa+HHDM_OFFSET)
 
 // 全局内核 PML4 指针
-extern pg_table_t* kernel_pml4 = NULL;
+pg_table_t* kernel_pml4 = NULL;
 /**
  * @brief 获取下一级页表指针。如果 allocate=true 且不存在，则创建之。
  * 
@@ -16,7 +16,7 @@ extern pg_table_t* kernel_pml4 = NULL;
  * @param allocate 
  * @return pg_table_t* 
  */
-static pg_table_t* get_next_table(pg_table_t* pgtable, uint64_t index, bool allocate) {
+pg_table_t* get_next_table(pg_table_t* pgtable, uint64_t index, bool allocate) {
     // 获取对应的页表项
     pte_t* entry = &pgtable->entries[index];
 
@@ -74,6 +74,9 @@ void vmm_map_page(pg_table_t* pml4, uintptr_t va, uintptr_t pa, uint64_t flags)
 
     // 设置最后一级 PTE
     pt->entries[idx1] = pa|flags|PTE_PRESENT;
+    
+    // 刷新 TLB 使新的页表映射生效
+    invlpg((void*)va);
 
 }
 

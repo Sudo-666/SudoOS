@@ -72,7 +72,6 @@ void debug_memmap(struct limine_memmap_response *mmap) {
             unusablemm+=e->length;
         }
 
-        char idx_buf[32];
         char base_buf[64];
         char len_buf[64];
 
