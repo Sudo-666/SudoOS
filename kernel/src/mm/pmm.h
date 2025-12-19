@@ -4,6 +4,34 @@
 #include <stdbool.h>
 #include "../limine.h"
 #include "../lib/string.h"
+#include "../lib/list.h"
+#include "paging.h"
+
+//****************************************** */
+//**                内核LAYOUT               */
+//****************************************** */
+// 1. 直接映射区 (HHDM Area)
+// 用于通过偏移量直接访问所有物理内存。Limine 默认通常映射在此处。
+// 预留空间：取决于物理内存总量（通常可支持到 TB 级）。
+#define KERNEL_HHDM_BASE         0xFFFF800000000000
+
+// 2. 内核堆区 (Kernel Heap)
+// 用于 kmalloc 动态分配。给堆预留 512GB 甚至更多，完全不用担心够不够用。
+#define KERNEL_HEAP_BASE         0xFFFF900000000000
+
+// 3. Vmalloc / MMIO 区
+// 用于映射硬件寄存器（如显存、APIC）或分配不连续的物理页。
+#define KERNEL_MMIO_BASE         0xFFFFA00000000000
+
+// 4. 内核栈区 (Kernel Stacks)
+// 每个进程/线程的内核栈起始位置。
+// 建议每个栈 16KB + 4KB 保护页，这里预留数 GB 空间可支持海量线程。
+#define KERNEL_STACK_BASE        0xFFFFB00000000000
+
+// 5. 内核镜像区 (Kernel Image)
+// 存放链接脚本定义的 .text, .rodata, .data, .bss。
+// 必须在 0xFFFFFFFF80000000，这是 -mcmodel=kernel 的硬性要求。
+#define KERNEL_IMAGE_BASE        0xFFFFFFFF80000000
 
 // 设置页面大小
 #define PAGE_SIZE 4096
@@ -56,3 +84,28 @@ uint64_t pmm_alloc_page();
  * @param pa 
  */
 void pmm_free_page(uint64_t pa);
+
+
+
+/**
+ * @brief 内核堆内存块头
+ * 
+ */
+typedef struct {
+    list_node_t node;
+    uint64_t size; // 空闲区大小
+    bool is_free;
+} kheap_pghdr_t;
+
+
+#define HEADER_SIZE sizeof(kheap_pghdr_t)
+#define MIN_SPLIT 16
+
+bool kheap_expand(size_t pgnum);
+
+void kheap_init(size_t init_pages);
+
+void* kmalloc(size_t size);
+
+void kfree(void* ptr);
+

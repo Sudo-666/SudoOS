@@ -99,15 +99,14 @@ void kmain(void) {
     }
     struct limine_hhdm_response *hhdm_res = hhdm_request.response;
     HHDM_OFFSET = hhdm_res->offset;
-
     // 初始化控制台
     console_init(framebuffer);
-    
-
-    usrmain();
-
     debug_memmap(mmap);
-
+    kprintf("HHDM OFFSET: %lx\n",HHDM_OFFSET);
+    pmm_init(mmap);
+    paging_init(mmap);
+    kheap_init(4);
+    //usrmain();
     hcf();
 
  
