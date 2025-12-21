@@ -12,7 +12,6 @@ volatile uint64_t ticks = 0; // 必须是 volatile，因为会在中断中修改
 // 时钟中断处理函数 (ISR)
 void timer_callback(registers_t* regs) {
     ticks++;
-    // 如果之后你要做进程调度，schedule() 就在这里调用
     // if (ticks % 10 == 0) schedule();
     
     // 注意：EOI (End of Interrupt) 发送逻辑通常在 idt.c 的总 isr_handler 里做，

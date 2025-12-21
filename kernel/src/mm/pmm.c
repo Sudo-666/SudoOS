@@ -343,35 +343,29 @@ void pmm_init(struct limine_memmap_response* mmap) {
 
 
 void* kstack_init(size_t size) {
-    kprintln("Initint kernel stack ...");
-    // 预留一个 Guard Page 的空间，跳过它
+    kprintln("Initing kernel stack ...");
+    // 预留 Guard Page
     kstack_ptr += PAGE_SIZE;
 
     uint64_t vaddr_bottom = kstack_ptr;
     uint64_t vaddr_top = vaddr_bottom + size;
 
+    // 更新全局指针，为下一次分配做准备
     kstack_ptr = vaddr_top;
+
+    // 循环映射每一页
     for (uint64_t v = vaddr_bottom; v < vaddr_top; v += PAGE_SIZE) {
-        // 分配物理页
         uint64_t paddr = pmm_alloc_page();
         if (paddr == 0) {
             kprintln("Error: OOM during kstack allocation!");
-            // // 【错误回滚】释放之前分配的页
-            // for (uint64_t rollback_v = vaddr_bottom; rollback_v < v; rollback_v += PAGE_SIZE) {
-            //     // 这里需要一个能够查表并获取物理地址的函数，或者 vmm_unmap
-            //     // 暂时假设你有 pmm_free_page 和 vmm_unmap
-            //     // pte_t* pte = get_pte(kernel_pml4, rollback_v, false);
-            //     // if (pte) { pmm_free_page(PTE_GET_ADDR(*pte)); *pte = 0; }
-            // }
             return NULL;
         }
 
-        // B. 建立映射
-        // 使用 kernel_pml4，因为内核栈在所有进程中都是可见的（高半核）
-        // 权限：PTE_PRESENT | PTE_RW (没有 PTE_USER，只有内核能访问)
-        // 此外，为了防止执行栈上的恶意代码，建议加上 PTE_NX (No Execute)，如果你定义了的话
         vmm_map_page(kernel_pml4, v, paddr, PTE_PRESENT | PTE_RW);
     }
-    kprintf("kernel stack is setted at %lx - %lx\n !", vaddr_bottom, vaddr_top);
+
+    kprintf("kernel stack allocated: %lx - %lx\n", vaddr_bottom, vaddr_top);
+    
+    // 循环结束后再返回栈顶地址
     return (void*)vaddr_top;
 }

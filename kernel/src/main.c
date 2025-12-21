@@ -3,6 +3,7 @@
 #include "lib/std.h"
 #include "../../usr/usrTest.c"
 #include "arch/idt.h"
+#include "arch/gdt.h"
 #include "mm/debug_mm.h"
 #include "mm/pmm.h"
 #include "mm/paging.h"
@@ -75,9 +76,17 @@ static void hcf(void)
  * @brief 入口
  * 
  */
+
+uint8_t kernel_stack[16384];
+
 void kmain(void) {
     
+    gdt_init();
+
+    set_tss_stack((uint64_t)kernel_stack + sizeof(kernel_stack));
+
     idt_init();
+
     // 确保版本正确
     if (LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision) == false) {
         hcf();
@@ -107,7 +116,22 @@ void kmain(void) {
     paging_init(mmap);
     kheap_init(4);
     void* ksptr = kstack_init(4*PAGE_SIZE);
-    //usrmain();
+    if (ksptr == NULL) hcf();
+
+    set_tss_stack((uint64_t)ksptr);
+
+    kprintf("Switching stack to %lx\n", ksptr);
+
+    // 只需要切换栈指针
+    asm volatile (
+        "mov %0, %%rsp \n\t"  // 更新栈指针
+        "xor %%rbp, %%rbp \n\t" // 清空栈帧指针（可选，为了调试好看）
+        : : "r" (ksptr) : "memory"
+    );
+
+    // 此时你应该能看到这句话了
+    kprintf("Stack switched successfully!\n");
+
     hcf();
 
  
