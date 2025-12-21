@@ -56,7 +56,6 @@ extern void isr31();
 // === 32-47 号硬件中断 (IRQs) ===
 extern void isr32(); // IRQ0: Timer
 extern void isr33(); // IRQ1: Keyboard
-// 如果你需要更多硬件中断(如鼠标IRQ12)，以后可以在这里加 isr44 等
 
 // === 128 号系统调用 ===
 extern void isr128(); // 0x80: Syscall
@@ -91,17 +90,17 @@ void idt_init() {
 
     // 2. 设置异常门 (0-31)
     // 0x8E = 1(Present) 00(Ring0) 0(S) 1110(Interrupt Gate)
-    idt_set_gate(0, (uint64_t)isr0, 0x28, 0x8E); // 假设内核代码段是0x28(limine默认是这个)
-    idt_set_gate(14, (uint64_t)isr14, 0x28, 0x8E);
+    idt_set_gate(0, (uint64_t)isr0, 0x08, 0x8E); // 内核代码段是0x28(limine默认是这个)
+    idt_set_gate(14, (uint64_t)isr14, 0x08, 0x8E);
 
     // 3. 设置硬件中断 (32-47)
-    idt_set_gate(32, (uint64_t)isr32, 0x28, 0x8E); // 时钟
-    idt_set_gate(33, (uint64_t)isr33, 0x28, 0x8E); // 键盘
+    idt_set_gate(32, (uint64_t)isr32, 0x08, 0x8E); // 时钟
+    idt_set_gate(33, (uint64_t)isr33, 0x08, 0x8E); // 键盘
 
     // 4. 设置系统调用 (128 / 0x80)
     // 0xEE = 1(Present) 11(Ring3) 0(S) 1110(Interrupt Gate)
     // 注意：系统调用必须允许Ring3进入，所以DPL=3 (0xEE)
-    idt_set_gate(128, (uint64_t)isr128, 0x28, 0xEE);
+    idt_set_gate(128, (uint64_t)isr128, 0x08, 0xEE);
 
     // 5. 加载IDT
     __asm__ volatile ("lidt %0" : : "m"(idt_ptr));

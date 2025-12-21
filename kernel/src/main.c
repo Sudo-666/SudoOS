@@ -3,6 +3,7 @@
 #include "lib/std.h"
 #include "../../usr/usrTest.c"
 #include "arch/idt.h"
+#include "arch/gdt.h"
 #include "mm/debug_mm.h"
 #include "mm/pmm.h"
 #include "mm/paging.h"
@@ -75,9 +76,17 @@ static void hcf(void)
  * @brief 入口
  * 
  */
+
+uint8_t kernel_stack[16384];
+
 void kmain(void) {
-    
+
+    gdt_init();
+
+    set_tss_stack((uint64_t)kernel_stack + sizeof(kernel_stack));
+
     idt_init();
+
     // 确保版本正确
     if (LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision) == false) {
         hcf();
