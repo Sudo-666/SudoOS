@@ -371,7 +371,7 @@ void* kstack_init(size_t size) {
         // 权限：PTE_PRESENT | PTE_RW (没有 PTE_USER，只有内核能访问)
         // 此外，为了防止执行栈上的恶意代码，建议加上 PTE_NX (No Execute)，如果你定义了的话
         vmm_map_page(kernel_pml4, v, paddr, PTE_PRESENT | PTE_RW);
-        kprintf("kernel stack is setted at %lx - %lx\n !", vaddr_bottom, vaddr_top);
-        return (void*)vaddr_top;
     }
+    kprintf("kernel stack is setted at %lx - %lx\n !", vaddr_bottom, vaddr_top);
+    return (void*)vaddr_top;
 }

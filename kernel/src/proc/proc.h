@@ -1,5 +1,6 @@
 #pragma once
 #include "../mm/vmm.h"
+#include "../arch/tr"
 
 #define PROCNAME_LEN 32
 
@@ -11,19 +12,6 @@ typedef enum {
 } proc_state_t;
 
 
-struct context {
-    uint64_t r15;
-    uint64_t r14;
-    uint64_t r13;
-    uint64_t r12;
-    uint64_t rbp;
-    uint64_t rbx;
-
-    // === 返回地址 ===
-    // 执行 call switch_to 时，CPU 自动压入的返回地址 (RIP)
-    // 切换回来后，ret 指令会弹出这个值并跳转
-    uint64_t rip;
-};
 
 struct pcb_t
 {
@@ -33,7 +21,7 @@ struct pcb_t
     
     int pid;
     proc_state_t proc_state;
-    char name[PROCNAME_LEN];
+    char name[PROCNAME_LEN+1];
     int exit_code;
 
 };
