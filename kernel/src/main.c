@@ -106,6 +106,7 @@ void kmain(void) {
     pmm_init(mmap);
     paging_init(mmap);
     kheap_init(4);
+    void* ksptr = kstack_init(4*PAGE_SIZE);
     //usrmain();
     hcf();
 
