@@ -10,6 +10,7 @@ size_t bitmap_size = 0;             // 位图占用的字节数
 size_t total_pages = 0;             // 物理内存总页数
 size_t free_pages = 0;              // 当前空闲页数（统计用）
 size_t last_free_index = 0;         // 优化变量，下次分配时从这里开始扫描
+uint64_t kstack_ptr = KERNEL_STACK_BASE;  // 内核栈指针
 
 /**
  * @brief 将bitmap的bit位设置成1
@@ -255,6 +256,7 @@ void kheap_init(size_t pgnum) {
     list_init(&kheap_list);
     kheap_top = KERNEL_HEAP_BASE;
     kheap_expand(pgnum);
+    kprintf("kernel heap is setted at %lx - %lx !\n",KERNEL_HEAP_BASE,kheap_top);
 }
 
 
@@ -337,4 +339,39 @@ void pmm_init(struct limine_memmap_response* mmap) {
     // 防止 pmm_alloc 返回 0，导致空指针混淆
     pmm_set_busy(0, 1);
     kprintln("===== Init pmm done!!! =====");
+}
+
+
+void* kstack_init(size_t size) {
+    kprintln("Initint kernel stack ...");
+    // 预留一个 Guard Page 的空间，跳过它
+    kstack_ptr += PAGE_SIZE;
+
+    uint64_t vaddr_bottom = kstack_ptr;
+    uint64_t vaddr_top = vaddr_bottom + size;
+
+    kstack_ptr = vaddr_top;
+    for (uint64_t v = vaddr_bottom; v < vaddr_top; v += PAGE_SIZE) {
+        // 分配物理页
+        uint64_t paddr = pmm_alloc_page();
+        if (paddr == 0) {
+            kprintln("Error: OOM during kstack allocation!");
+            // // 【错误回滚】释放之前分配的页
+            // for (uint64_t rollback_v = vaddr_bottom; rollback_v < v; rollback_v += PAGE_SIZE) {
+            //     // 这里需要一个能够查表并获取物理地址的函数，或者 vmm_unmap
+            //     // 暂时假设你有 pmm_free_page 和 vmm_unmap
+            //     // pte_t* pte = get_pte(kernel_pml4, rollback_v, false);
+            //     // if (pte) { pmm_free_page(PTE_GET_ADDR(*pte)); *pte = 0; }
+            // }
+            return NULL;
+        }
+
+        // B. 建立映射
+        // 使用 kernel_pml4，因为内核栈在所有进程中都是可见的（高半核）
+        // 权限：PTE_PRESENT | PTE_RW (没有 PTE_USER，只有内核能访问)
+        // 此外，为了防止执行栈上的恶意代码，建议加上 PTE_NX (No Execute)，如果你定义了的话
+        vmm_map_page(kernel_pml4, v, paddr, PTE_PRESENT | PTE_RW);
+        kprintf("kernel stack is setted at %lx - %lx\n !", vaddr_bottom, vaddr_top);
+        return (void*)vaddr_top;
+    }
 }

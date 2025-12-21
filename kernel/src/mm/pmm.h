@@ -109,3 +109,10 @@ void* kmalloc(size_t size);
 
 void kfree(void* ptr);
 
+//************************************************** */
+//*************        kstack             ********** */
+//************************************************** */
+
+extern uint64_t kstack_ptr;
+
+void* kstack_init(size_t size);
