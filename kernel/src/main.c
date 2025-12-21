@@ -80,7 +80,7 @@ static void hcf(void)
 uint8_t kernel_stack[16384];
 
 void kmain(void) {
-
+    
     gdt_init();
 
     set_tss_stack((uint64_t)kernel_stack + sizeof(kernel_stack));
@@ -115,7 +115,23 @@ void kmain(void) {
     pmm_init(mmap);
     paging_init(mmap);
     kheap_init(4);
-    //usrmain();
+    void* ksptr = kstack_init(4*PAGE_SIZE);
+    if (ksptr == NULL) hcf();
+
+    set_tss_stack((uint64_t)ksptr);
+
+    kprintf("Switching stack to %lx\n", ksptr);
+
+    // 只需要切换栈指针
+    asm volatile (
+        "mov %0, %%rsp \n\t"  // 更新栈指针
+        "xor %%rbp, %%rbp \n\t" // 清空栈帧指针（可选，为了调试好看）
+        : : "r" (ksptr) : "memory"
+    );
+
+    // 此时你应该能看到这句话了
+    kprintf("Stack switched successfully!\n");
+
     hcf();
 
  

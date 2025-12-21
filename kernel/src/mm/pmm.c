@@ -10,6 +10,7 @@ size_t bitmap_size = 0;             // 位图占用的字节数
 size_t total_pages = 0;             // 物理内存总页数
 size_t free_pages = 0;              // 当前空闲页数（统计用）
 size_t last_free_index = 0;         // 优化变量，下次分配时从这里开始扫描
+uint64_t kstack_ptr = KERNEL_STACK_BASE;  // 内核栈指针
 
 /**
  * @brief 将bitmap的bit位设置成1
@@ -255,6 +256,7 @@ void kheap_init(size_t pgnum) {
     list_init(&kheap_list);
     kheap_top = KERNEL_HEAP_BASE;
     kheap_expand(pgnum);
+    kprintf("kernel heap is setted at %lx - %lx !\n",KERNEL_HEAP_BASE,kheap_top);
 }
 
 
@@ -337,4 +339,33 @@ void pmm_init(struct limine_memmap_response* mmap) {
     // 防止 pmm_alloc 返回 0，导致空指针混淆
     pmm_set_busy(0, 1);
     kprintln("===== Init pmm done!!! =====");
+}
+
+
+void* kstack_init(size_t size) {
+    kprintln("Initing kernel stack ...");
+    // 预留 Guard Page
+    kstack_ptr += PAGE_SIZE;
+
+    uint64_t vaddr_bottom = kstack_ptr;
+    uint64_t vaddr_top = vaddr_bottom + size;
+
+    // 更新全局指针，为下一次分配做准备
+    kstack_ptr = vaddr_top;
+
+    // 循环映射每一页
+    for (uint64_t v = vaddr_bottom; v < vaddr_top; v += PAGE_SIZE) {
+        uint64_t paddr = pmm_alloc_page();
+        if (paddr == 0) {
+            kprintln("Error: OOM during kstack allocation!");
+            return NULL;
+        }
+
+        vmm_map_page(kernel_pml4, v, paddr, PTE_PRESENT | PTE_RW);
+    }
+
+    kprintf("kernel stack allocated: %lx - %lx\n", vaddr_bottom, vaddr_top);
+    
+    // 【修复】循环结束后再返回栈顶地址
+    return (void*)vaddr_top;
 }
