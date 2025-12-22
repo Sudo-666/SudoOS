@@ -37,26 +37,26 @@ void gdt_init() {
     // 1: Kernel Code (0x08)
     // Access: 0x9A = 1(P) 00(Ring0) 1(S) 1010(Code/Read)
     // Gran:   0xAF = 1(G) 0(D/B) 1(L-64bit) 1111(Limit)
-    gdt_set_gate(1, 0, 0, 0x9A, 0x20); // 64位代码段不检查limit，设flags即可
+    gdt_set_gate(1, 0, 0, GDT_KERNEL_CODE_ACCESS, GDT_LONG_MODE); // 64位代码段不检查limit，设flags即可
 
     // 2: Kernel Data (0x10)
     // Access: 0x92 = 1(P) 00(Ring0) 1(S) 0010(Data/Write)
-    gdt_set_gate(2, 0, 0, 0x92, 0x00);
+    gdt_set_gate(2, 0, 0, GDT_KERNEL_DATA_ACCESS, 0x00);
 
     // 3: User Data (0x18)
     // Access: 0xF2 = 1(P) 11(Ring3) 1(S) 0010(Data/Write)
-    gdt_set_gate(3, 0, 0, 0xF2, 0x00);
+    gdt_set_gate(3, 0, 0, GDT_USER_DATA_ACCESS, 0x00);
 
     // 4: User Code (0x20)
     // Access: 0xFA = 1(P) 11(Ring3) 1(S) 1010(Code/Read)
-    gdt_set_gate(4, 0, 0, 0xFA, 0x20);
+    gdt_set_gate(4, 0, 0, GDT_USER_CODE_ACCESS, GDT_LONG_MODE);
 
     // 5: TSS (0x28) - 这是一个特殊的系统段
     // 在 64 位下，TSS 描述符是 16 字节长，占用 gdt[5] 和 gdt[6]
     uint64_t tss_base = (uint64_t)&tss;
     uint64_t tss_limit = sizeof(tss);
 
-    gdt_set_gate(5, tss_base, tss_limit, 0x89, 0x00); // 0x89 = Present, Ring0, TSS Available
+    gdt_set_gate(5, tss_base, tss_limit, GDT_TSS_ACCESS, 0x00); // 0x89 = Present, Ring0, TSS Available
     
     // TSS 描述符的高 64 位特殊处理 (放在 gdt[6] 的位置)
     // 只是简单地把地址的高 32 位放进去

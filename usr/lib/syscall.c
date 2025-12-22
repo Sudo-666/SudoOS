@@ -20,7 +20,7 @@ static inline int64_t syscall(int64_t num, int64_t a1, int64_t a2, int64_t a3) {
     return ret;
 }
 
-void usrprint(const char* str) {
+void print(const char* str) {
     int len = 0;
     while(str[len]) len++;
     syscall(1, 1, (uint64_t)str, len);

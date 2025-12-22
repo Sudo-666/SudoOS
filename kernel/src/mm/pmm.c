@@ -366,6 +366,6 @@ void* kstack_init(size_t size) {
 
     kprintf("kernel stack allocated: %lx - %lx\n", vaddr_bottom, vaddr_top);
     
-    // 【修复】循环结束后再返回栈顶地址
+    // 循环结束后再返回栈顶地址
     return (void*)vaddr_top;
 }

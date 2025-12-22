@@ -16,7 +16,7 @@ pg_table_t* kernel_pml4 = NULL;
  * @param allocate 
  * @return pg_table_t* 
  */
-pg_table_t* get_next_table(pg_table_t* pgtable, uint64_t index, bool allocate) {
+pg_table_t* get_next_table(pg_table_t* pgtable, uint64_t index, bool allocate,uint64_t flags) {
     // 获取对应的页表项
     pte_t* entry = &pgtable->entries[index];
 
@@ -40,7 +40,7 @@ pg_table_t* get_next_table(pg_table_t* pgtable, uint64_t index, bool allocate) {
         memset(newpg_va, 0, PAGE_SIZE);
 
         // 设置页表项
-        *entry = newpg_pa | PTE_PRESENT | PTE_RW;
+        *entry = newpg_pa | flags;
         // 返回
         return newpg_va;
     }
@@ -65,11 +65,11 @@ void vmm_map_page(pg_table_t* pml4, uintptr_t va, uintptr_t pa, uint64_t flags)
     uint64_t idx1 = PT_IDX(va);
 
     // 获取页表项
-    pg_table_t* pdpt = get_next_table(pml4,idx4,1);
+    pg_table_t* pdpt = get_next_table(pml4,idx4,1,flags);
     if (pdpt == NULL) return; // 检查分配是否失败
-    pg_table_t* pd = get_next_table(pdpt,idx3,1);
+    pg_table_t* pd = get_next_table(pdpt,idx3,1,flags);
     if (pd == NULL) return; // 检查分配是否失败
-    pg_table_t* pt = get_next_table(pd,idx2,1);
+    pg_table_t* pt = get_next_table(pd,idx2,1,flags);
     if (pt == NULL) return; // 检查分配是否失败
 
     // 设置最后一级 PTE

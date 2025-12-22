@@ -1,5 +1,6 @@
 #pragma once
 #include "../mm/vmm.h"
+#include "../arch/trap.h"
 
 #define PROCNAME_LEN 32
 
@@ -11,30 +12,28 @@ typedef enum {
 } proc_state_t;
 
 
-struct context {
-    uint64_t r15;
-    uint64_t r14;
-    uint64_t r13;
-    uint64_t r12;
-    uint64_t rbp;
-    uint64_t rbx;
-
-    // === 返回地址 ===
-    // 执行 call switch_to 时，CPU 自动压入的返回地址 (RIP)
-    // 切换回来后，ret 指令会弹出这个值并跳转
-    uint64_t rip;
-};
-
 struct pcb_t
 {
-    uint64_t rsp;          // 栈指针
-    uint64_t kstack;       // 内核栈的栈底地址
+    // ===  硬件上下文与栈 ===
+    uint64_t rsp;                    // 栈指针
+    uint64_t kstack;                 // 内核栈的栈底地址
+    context_t * context;
+    trap_frame_t* trap_frame;
+
+    // ===  内存空间 ===
     struct mm_struct* mm;
-    
+
+    list_node_t proc_list_node;
+
+    // === 状态信息 ===
+    uint64_t total_runtime;          // 运行时间
+
+
     int pid;
+    struct pcb_t *parent;
     proc_state_t proc_state;
-    char name[PROCNAME_LEN];
-    int exit_code;
+    char name[PROCNAME_LEN+1];
+    int exit_code;                   // 退出码
 
 };
 
