@@ -1,4 +1,4 @@
-# 进度
+## limine引导
 用 C 编写的一个符合 Limine 标准的小型 x86-64 内核，并使用 Limine 引导加载程序启动
 
 - Limine 本质只是引导程序（bootloader），它的工作是：
@@ -390,4 +390,125 @@ make run
 ```
 
 
+# 内核处理流程
+
+## 1. 引导阶段 (Boot Phase)
+
+内核由 **Limine** 引导加载程序启动。
+
+* **配置文件**：`SudoOS/limine.conf` 定义了引导协议、内核路径和模块路径。
+* 内核路径：`boot():/boot/kernel`
+* 用户程序模块：`boot():/user.bin`
+
+
+* **Limine 请求**：内核在 `SudoOS/kernel/src/main.c` 中声明了一系列请求结构体，Limine 在加载内核时会填充这些结构体，提供硬件信息。
+* `framebuffer_request`: 获取显存信息用于显示。
+* `memmap_request`: 获取物理内存布局。
+* `hhdm_request`: 获取高半核直接映射 (HHDM) 偏移量。
+* `module_request`: 获取加载的模块（即用户程序 `user.bin`）。
+
+
+
+## 2. 内核初始化 (Kernel Initialization)
+
+入口函数为 `kmain`，它首先调用 `kernel_init` 进行基础硬件和子系统初始化。
+
+### 2.1 基础硬件与中断初始化
+
+1. **GDT (全局描述符表)**: `gdt_init()` 初始化 GDT，设置内核态和用户态的代码段/数据段描述符，以及 TSS (任务状态段)。
+2. **IDT (中断描述符表)**: `idt_init()` 初始化 IDT，配置异常处理、硬件中断（时钟、键盘）以及系统调用（0x80 中断）的入口。
+3. **控制台**: `console_init()` 利用 Limine 提供的 framebuffer 初始化图形化控制台，支持 `kprintf` 输出。
+
+### 2.2 内存管理初始化 (`mm_init`)
+
+函数 `mm_init` 负责构建内核的内存环境：
+
+1. **物理内存管理 (PMM)**: `pmm_init()` 解析 Limine 提供的内存图 (Memmap)，利用位图 (Bitmap) 管理物理页的分配与释放。
+2. **分页机制 (Paging)**: `paging_init()` 建立页表。它分配新的 PML4 页表，映射内核本身、HHDM 区域（用于访问所有物理内存），并加载 CR3 寄存器激活新页表。
+3. **内核堆 (Kernel Heap)**: `kheap_init()` 初始化内核堆，允许动态内存分配 (`kmalloc`)。
+4. **内核栈 (Kernel Stack)**: `kstack_init()` 分配并映射新的内核栈。
+5. **栈切换**: `set_tss_stack()` 将新分配的内核栈地址填入 TSS 的 `RSP0` 字段。这意味着当用户态发生中断或系统调用时，CPU 会自动切换到这个内核栈。
+
+## 3. 用户程序加载 (User Program Loading)
+
+内存初始化完成后，`kmain` 开始准备运行用户程序。
+
+### 3.1 获取模块
+
+内核通过 `module_request` 检查 Limine 是否加载了用户程序模块。
+
+```c
+struct limine_module_response *module_response = module_request.response;
+// 获取第一个模块 (user.bin)
+struct limine_file *user_file = module_response->modules[0];
+
+```
+
+### 3.2 建立用户空间映射
+
+内核为用户程序定义了固定的虚拟地址布局：
+
+* **代码段基址**: `0x1000000` (16MB)
+* **用户栈基址**: `0x80000000` (2GB)
+
+加载过程如下：
+
+1. **分配物理页**: 根据 `user.bin` 文件的大小，计算需要多少页，并调用 `pmm_alloc_page()` 分配相应的物理内存。
+2. **映射页表**: 使用 `vmm_map_page()` 将用户虚拟地址 (`0x1000000`) 映射到分配的物理地址。关键在于设置了 `PTE_USER` 标志，允许 Ring 3 访问该内存。
+3. **拷贝代码**: 利用 HHDM 机制，将 Limine 模块中的原始数据 (`user_file->address`) 拷贝到刚分配的物理内存中。
+4. **准备用户栈**: 同样地，为用户栈分配物理页并映射到 `0x80000000`，同样赋予 `PTE_USER` 权限。
+
+## 4. 切换至用户态 (Ring 3 Switch)
+
+一切准备就绪后，内核调用 `enter_user_mode` 函数进行特权级切换。
+
+### 4.1 构造中断返回帧 (Trap Frame)
+
+`enter_user_mode` 是一个内联汇编函数，它模拟了中断返回的动作来“返回”到用户态。它按顺序压入以下寄存器值（x86_64 `iretq` 指令的要求）：
+
+1. **SS (Stack Segment)**: 用户数据段选择子 (`0x1B` = User Data Selector `0x18` | RPL `3`)。
+2. **RSP (Stack Pointer)**: 用户栈顶地址 (`user_stack_va + PAGE_SIZE`)。
+3. **RFLAGS**: 标志寄存器，特别是开启中断标志位 (`IF` = 1, `0x200`)。
+4. **CS (Code Segment)**: 用户代码段选择子 (`0x23` = User Code Selector `0x20` | RPL `3`)。
+5. **RIP (Instruction Pointer)**: 用户程序入口地址 (`0x1000000`)。
+
+### 4.2 执行切换
+
+* **设置段寄存器**: 将 `DS`, `ES`, `FS`, `GS` 设置为用户数据段选择子 (`0x1B`)。
+* **IRETQ**: 执行 `iretq` 指令。CPU 弹出栈上的上下文，跳转到 `RIP` (`0x1000000`)，并将特权级 (CPL) 从 0 切换到 3。
+
+## 5. 用户程序执行与系统调用
+
+### 5.1 用户代码执行
+
+CPU 开始执行位于 `0x1000000` 的用户代码（即 `user.bin`）。
+用户程序的入口是 `usrmain`（在链接脚本或 `ld` 命令中指定了 `-e usrmain`）。`usrmain` 调用 `print()` 函数输出字符串。
+
+### 5.2 触发系统调用
+
+`print()` 函数内部封装了系统调用逻辑：
+
+```c
+// usr/lib/syscall.c
+__asm__ volatile (
+    "int $0x80"
+    : "=a" (ret)
+    : "a" (num), ...
+);
+
+```
+
+它执行 `int 0x80` 指令，触发 128 号中断。
+
+### 5.3 内核处理系统调用
+
+1. **进入内核**: CPU 捕获异常，根据 IDT 跳转到 `isr128` (在 `src/arch/isr.S` 中定义)。
+2. **保存上下文**: `isr128` 将所有通用寄存器压栈，保存用户态现场。
+3. **分发处理**: 调用 C 函数 `isr_handler`。
+4. **执行服务**: `isr_handler` 识别出中断号 128，调用 `syscall_handler`。`syscall_handler` 根据 `RAX` 中的系统调用号（如 `SYS_WRITE`），执行打印操作（调用 `kprintf`）。
+5. **返回用户态**: 处理完成后，代码执行 `iretq`，恢复之前保存的上下文，回到用户程序继续执行。
+
+### 5.4 程序结束
+
+用户程序 `usrmain` 最后进入死循环 `while(1)`，防止函数返回导致指令指针跑飞。
 

@@ -1,13 +1,14 @@
 #include "limine.h"
 #include "drivers/drivers.h"
 #include "lib/std.h"
-#include "../../usr/usrTest.c"
 #include "arch/idt.h"
 #include "arch/gdt.h"
 #include "mm/debug_mm.h"
 #include "mm/pmm.h"
 #include "mm/paging.h"
+#include "arch/x86_64.h"
 
+extern uint64_t *kernel_pml4;
 
 /**
  * @brief 声明limine版本号
@@ -48,6 +49,12 @@ static volatile struct limine_hhdm_request hhdm_request = {
     .revision = 0
 };
 
+// 
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_module_request module_request = {
+    .id = LIMINE_MODULE_REQUEST_ID,
+    .revision = 0
+};
 
 /**
  * @brief  声明limine请求区头尾，使得limine在内核运行前处理请求区的所有请求
@@ -71,19 +78,35 @@ static void hcf(void)
     }
 }
 
+void* mm_init() {
+    // 获取memmap
+    struct limine_memmap_response *mmap = memmap_request.response;
+    // 获取hhdm_response
+    if (hhdm_request.response == NULL) {
+        hcf();
+    }
+    struct limine_hhdm_response *hhdm_res = hhdm_request.response;
+    HHDM_OFFSET = hhdm_res->offset;
+    // 初始化控制台
 
-/**
- * @brief 入口
- * 
- */
+    debug_memmap(mmap);
+    kprintf("HHDM OFFSET: %lx\n",HHDM_OFFSET);
+    pmm_init(mmap);
+    paging_init(mmap);
+    kheap_init(4);
 
-uint8_t kernel_stack[16384];
+    // 内核栈相关
+    void* ksptr = kstack_init(4*PAGE_SIZE);
+    if (ksptr == NULL) hcf();
 
-void kmain(void) {
-    
+    set_tss_stack((uint64_t)ksptr);
+    kprintf("Switching stack to %lx\n", ksptr);
+
+    return ksptr;
+}
+
+void* kernel_init() {
     gdt_init();
-
-    set_tss_stack((uint64_t)kernel_stack + sizeof(kernel_stack));
 
     idt_init();
 
@@ -98,29 +121,33 @@ void kmain(void) {
         hcf();
     }
 
+    // 初始化终端
     // 获取到第一个显存信息
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
-    // 获取memmap
-    struct limine_memmap_response *mmap = memmap_request.response;
-    // 获取hhdm_response
-    if (hhdm_request.response == NULL) {
+    console_init(framebuffer);
+    return mm_init();
+}
+
+
+
+/**
+ * @brief 入口
+ * 
+ */
+
+
+
+void kmain(void) {
+    
+    void* ksptr = kernel_init();
+    // 2. 获取模块响应
+    struct limine_module_response *module_response = module_request.response;
+    if (module_response == NULL || module_response->module_count < 1) {
+        kprintln("Error: No modules loaded! Check limine.cfg");
         hcf();
     }
-    struct limine_hhdm_response *hhdm_res = hhdm_request.response;
-    HHDM_OFFSET = hhdm_res->offset;
-    // 初始化控制台
-    console_init(framebuffer);
-    debug_memmap(mmap);
-    kprintf("HHDM OFFSET: %lx\n",HHDM_OFFSET);
-    pmm_init(mmap);
-    paging_init(mmap);
-    kheap_init(4);
-    void* ksptr = kstack_init(4*PAGE_SIZE);
-    if (ksptr == NULL) hcf();
-
-    set_tss_stack((uint64_t)ksptr);
-
-    kprintf("Switching stack to %lx\n", ksptr);
+    struct limine_file *user_file = module_response->modules[0]; // 获取第一个模块
+    kprintf("Module found at: %lx, Size: %ld\n", user_file->address, user_file->size);
 
     // 只需要切换栈指针
     asm volatile (
@@ -131,8 +158,45 @@ void kmain(void) {
 
     // 此时你应该能看到这句话了
     kprintf("Stack switched successfully!\n");
+    kprintln("Preparing to run usrmain in User Mode...");
 
+    // 3. 映射并拷贝用户代码
+    uint64_t user_code_va = 0x1000000;
+
+    size_t file_pages = (user_file->size + PAGE_SIZE - 1) / PAGE_SIZE;
+    
+    for(size_t i=0; i < file_pages; i++) {
+        uint64_t pg_pa = pmm_alloc_page();
+        
+        // 映射
+        vmm_map_page(kernel_pml4, user_code_va + i*PAGE_SIZE, pg_pa, PTE_PRESENT | PTE_RW | PTE_USER);
+        
+        // 拷贝 (通过 HHDM 计算目标地址)
+        extern uint64_t HHDM_OFFSET;
+        void* dst = (void*)(pg_pa + HHDM_OFFSET);
+        
+        // 计算本页拷贝大小
+        size_t cp_len = PAGE_SIZE;
+        if(i == file_pages -1) cp_len = user_file->size % PAGE_SIZE;
+        if(cp_len == 0) cp_len = PAGE_SIZE;
+        
+        // 从模块地址拷贝 (Limine HHDM地址可以直接读)
+        memcpy(dst, (void*)(user_file->address + i*PAGE_SIZE), cp_len);
+    }
+    
+    kprintln("User program loaded at 0x1000000");
+
+    // 4. 映射栈 (保持不变)
+    uint64_t user_stack_va = 0x80000000; 
+    uint64_t stack_pa = pmm_alloc_page();
+    vmm_map_page(kernel_pml4, user_stack_va, stack_pa, PTE_PRESENT | PTE_RW | PTE_USER);
+
+    // 5. 跳转
+    kprintln("Switching to Ring 3...");
+    enter_user_mode(user_code_va, user_stack_va + PAGE_SIZE);
+
+    // 如果成功，代码不会运行到这里
+    kprintln("ERROR: Switch failed!");
     hcf();
-
  
 }

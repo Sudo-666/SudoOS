@@ -93,11 +93,32 @@ kernel/.deps-obtained:
 kernel:  kernel/.deps-obtained
 	$(MAKE) -C kernel
 
+# 编译用户程序
+# 编译 C 文件为目标文件 (.o)
+# 注意参数：
+# -ffreestanding: 独立环境，不依赖标准库
+# -fno-stack-protector: 禁用栈保护（除非你实现了相关支持）
+# -mno-red-zone: 禁用红区（x86_64 中断处理必需）
+# -Iusr/lib: 确保能找到 syscall.h 等头文件
+usr/usrTest.o: usr/usrmain.c
+	gcc -c $< -o $@ -ffreestanding -fno-stack-protector -mno-red-zone -Iusr
+
+# 链接为纯二进制文件 (.bin)
+# -Ttext 0x1000000: 告诉链接器，这段代码将被加载到内存 0x1000000 处运行
+# --oformat binary: 输出纯机器码，不要 ELF 头（方便内核直接 memcpy）
+usr/bin/user.bin: usr/usrmain.o
+	mkdir -p usr/bin
+	ld -Ttext 0x1000000 -e usrmain usr/usrTest.o -o usr/bin/user.elf
+	objcopy -O binary -j .text -j .data -j .rodata usr/bin/user.elf usr/bin/user.bin
+
 # ISO镜像构建
-$(IMAGE_NAME).iso: boot/limine kernel
+$(IMAGE_NAME).iso: boot/limine kernel usr/bin/user.bin
 	rm -rf iso_root
 	mkdir -p iso_root/boot
 	cp -v kernel/bin/kernel iso_root/boot/
+	# 2. 【新增】将用户程序复制到 ISO 根目录
+	# 这样在 limine.cfg 里就可以用 module_path: boot:///user.bin 找到它
+	cp -v usr/bin/user.bin iso_root/
 	mkdir -p iso_root/boot/limine
 	cp -v limine.conf boot/limine/limine-bios.sys boot/limine/limine-bios-cd.bin boot/limine/limine-uefi-cd.bin iso_root/boot/limine/
 	mkdir -p iso_root/EFI/BOOT

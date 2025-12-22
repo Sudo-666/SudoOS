@@ -1,3 +1,4 @@
+#pragma once
 #ifndef __LIBS_X86_H__
 #define __LIBS_X86_H__
 
@@ -59,17 +60,7 @@ static inline void *__memmove(void *dst, const void *src, size_t n) __attribute_
 
 
 
-/**
- * @brief 从指定端口读取 1 个字节 (8-bit)。
- * 
- * @param port 指定端口
- * @return uint8_t 读取到的 1 个字节
- */
-static inline uint8_t inb(uint16_t port) {
-    uint8_t data;
-    asm volatile ("inb %1, %0" : "=a" (data) : "d" (port));
-    return data;
-}
+
 
 /**
  * @brief 从指定端口读取 1 个字 (16-bit)。
@@ -111,15 +102,7 @@ static inline void insl(uint32_t port, void *addr, int cnt) {
         : "memory", "cc");
 }
 
-/**
- * @brief 向指定端口写入 1 个字节。
- * 
- * @param port 
- * @param data 
- */
-static inline void outb(uint16_t port, uint8_t data) {
-    asm volatile ("outb %0, %1" :: "a" (data), "d" (port));
-}
+
 
 /**
  * @brief 向指定端口写入 1 个字。
@@ -422,3 +405,25 @@ static inline void * __memcpy(void *dst, const void *src, size_t n) {
 #endif
 
 #endif /* !__LIBS_X86_H__ */
+
+static inline void enter_user_mode(uint64_t entry_point, uint64_t user_stack) {
+   asm volatile(
+    "cli \n\t"
+    "mov $0x1B, %%ax \n\t"    // User Data Selector (0x18 | 3)
+    "mov %%ax, %%ds \n\t"
+    "mov %%ax, %%es \n\t"
+    "mov %%ax, %%fs \n\t"
+    "mov %%ax, %%gs \n\t"
+
+    "pushq $0x1B \n\t"        // SS
+    "pushq %0 \n\t"           // RSP (Operand %0)
+    "pushfq \n\t"             // RFLAGS
+    "popq %%rax \n\t"
+    "orq $0x200, %%rax \n\t"  // Enable Interrupts flag in RFLAGS
+    "pushq %%rax \n\t"
+    "pushq $0x23 \n\t"        // CS (User Code Selector 0x20 | 3)
+    "pushq %1 \n\t"           // RIP (Operand %1)
+    "iretq \n\t"
+    : : "r"(user_stack), "r"(entry_point) : "rax", "memory"
+);
+}
