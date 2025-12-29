@@ -3,3 +3,5 @@ boot/limine/
 kernel/bin
 kernel/obj
 kernel/deps
+
+flake.lock
