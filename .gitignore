@@ -4,4 +4,3 @@ kernel/bin
 kernel/obj
 kernel/deps
 
-flake.nix
