@@ -5,6 +5,7 @@
 
 switch_to:
     # 1. 保存当前进程的上下文 (Callee-saved)
+    push %rdi
     push %rbp
     push %rbx
     push %r12
@@ -26,6 +27,7 @@ switch_to:
     pop %r12
     pop %rbx
     pop %rbp
+    pop %rdi
 
     # 5. 跳转执行 (ret 会弹出栈顶的 RIP，这个 RIP 是上一次该进程切出时保存的)
     ret

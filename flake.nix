@@ -41,6 +41,7 @@
 
         # Shell 启动时的 Hook，可以在这里打印欢迎信息或设置环境变量
         shellHook = ''
+          echo "\n"
           echo "==========================================="
           echo "Welcome to SudoOS Development Environment!"
           echo "Tools loaded: GCC, NASM, QEMU, XORRISO..."
