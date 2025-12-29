@@ -2,6 +2,16 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+/**
+ * @brief 获取包含某成员的结构体指针
+ * @param ptr 指向成员的指针
+ * @param type 结构体类型
+ * @param member 成员名称
+ * @return type* 指向包含该成员的结构体的指针
+ */
+#define container_of(ptr, type, member) \
+    ((type *)((char *)(ptr) - offsetof(type, member)))
+
 // 通用双向循环链表节点
 typedef struct list_node {
     struct list_node *next;

@@ -3,6 +3,7 @@
 #define __LIBS_X86_H__
 
 #include <stdint.h>
+#include <stddef.h>
 
 // 告诉编译器，不要把这行代码前面的内存访问指令优化（重排）到这行代码后面。
 #define barrier() __asm__ __volatile__ ("" ::: "memory")

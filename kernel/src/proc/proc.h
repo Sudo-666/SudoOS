@@ -4,7 +4,7 @@
 #include "../mm/vmm.h"
 #define PROCNAME_LEN 32
 #define KSTACK_SIZE 0x4000    // 16KB
-#define TIME_SLICE_DEFAULT 10 // 默认时间片长度，单位：tick
+
 
 typedef enum {
   PROC_RUNNING,
@@ -25,6 +25,8 @@ typedef struct pcb_t {
   struct mm_struct *mm;
 
   list_node_t proc_list_node;
+  list_node_t sched_node; // 调度队列节点
+
 
   // === 状态信息 ===
   uint64_t total_runtime; // 运行时间
@@ -60,3 +62,7 @@ pcb_t *alloc_new_pcb();
  */
 pcb_t *kthread_create(pcb_t *parent, const char *name,
                       void (*kthread_func)(void *), void *arg);
+
+void kthread_exit();
+
+void free_proc(pcb_t *proc);

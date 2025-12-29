@@ -25,6 +25,6 @@ typedef struct {
     uint64_t r12;
     uint64_t rbx;
     uint64_t rbp;
-    uint64_t rip; // 返回地址
     uint64_t rdi; // 用于传递第一个参数 (arg)
+    uint64_t rip; // 返回地址
 } context_t;
