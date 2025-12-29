@@ -8,7 +8,7 @@
 #include "mm/paging.h"
 #include "arch/x86_64.h"
 
-extern uint64_t *kernel_pml4;
+extern pg_table_t *kernel_pml4;
 
 /**
  * @brief 声明limine版本号
