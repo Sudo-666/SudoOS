@@ -8,7 +8,7 @@
 #include "mm/paging.h"
 #include "arch/x86_64.h"
 
-extern uint64_t *kernel_pml4;
+extern pg_table_t *kernel_pml4;
 
 /**
  * @brief 声明limine版本号
@@ -149,15 +149,6 @@ void kmain(void) {
     struct limine_file *user_file = module_response->modules[0]; // 获取第一个模块
     kprintf("Module found at: %lx, Size: %ld\n", user_file->address, user_file->size);
 
-    // 只需要切换栈指针
-    asm volatile (
-        "mov %0, %%rsp \n\t"  // 更新栈指针
-        "xor %%rbp, %%rbp \n\t" // 清空栈帧指针（可选，为了调试好看）
-        : : "r" (ksptr) : "memory"
-    );
-
-    // 此时你应该能看到这句话了
-    kprintf("Stack switched successfully!\n");
     kprintln("Preparing to run usrmain in User Mode...");
 
     // 3. 映射并拷贝用户代码

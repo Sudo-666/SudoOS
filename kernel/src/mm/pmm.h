@@ -105,6 +105,11 @@ bool kheap_expand(size_t pgnum);
 
 void kheap_init(size_t init_pages);
 
+/**
+ * @brief 首次适配算法分配内核堆内存块
+ * @param size 内存块大小
+ * @return void* 内存块指针
+ */
 void* kmalloc(size_t size);
 
 void kfree(void* ptr);
@@ -115,4 +120,9 @@ void kfree(void* ptr);
 
 extern uint64_t kstack_ptr;
 
+/**
+ * @brief 分配内核栈
+ * @param size 栈大小
+ * @return void* 栈顶地址
+ */
 void* kstack_init(size_t size);
