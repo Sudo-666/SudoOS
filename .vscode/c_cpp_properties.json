@@ -1,0 +1,26 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/opt/homebrew/Cellar/x86_64-elf-gcc/15.2.0/lib/gcc/x86_64-elf/15.2.0/include"
+            ],
+            "defines": [
+                "__STDC_HOSTED__=0",
+                "__x86_64__",
+                "__UINT64_TYPE__=unsigned long long",
+                "__UINT32_TYPE__=unsigned int",
+                "__INT64_TYPE__=long long",
+                "__INT32_TYPE__=int",
+                "__SIZE_TYPE__=unsigned long"
+            ],
+            "macFrameworkPath": [],
+            "compilerPath": "/opt/homebrew/bin/x86_64-elf-gcc", 
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-x64" 
+        }
+    ],
+    "version": 4
+}
