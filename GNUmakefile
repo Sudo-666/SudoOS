@@ -14,6 +14,10 @@ HOST_CPPFLAGS :=
 HOST_LDFLAGS :=
 HOST_LIBS :=
 
+USER_CC      := x86_64-elf-gcc
+USER_LD      := x86_64-elf-ld
+USER_OBJCOPY := x86_64-elf-objcopy
+
 # 设置构建目标
 # 构建ISO镜像文件
 .PHONY: all
@@ -100,37 +104,42 @@ kernel:  kernel/.deps-obtained
 # -fno-stack-protector: 禁用栈保护（除非你实现了相关支持）
 # -mno-red-zone: 禁用红区（x86_64 中断处理必需）
 # -Iusr/lib: 确保能找到 syscall.h 等头文件
-usr/usrTest.o: usr/usrmain.c
-	gcc -c $< -o $@ -ffreestanding -fno-stack-protector -mno-red-zone -Iusr
+usr/usrmain.o: usr/usrmain.c
+	@mkdir -p usr
+	$(USER_CC) -c $< -o $@ -ffreestanding -fno-stack-protector -mno-red-zone -Iusr
 
-# 链接为纯二进制文件 (.bin)
-# -Ttext 0x1000000: 告诉链接器，这段代码将被加载到内存 0x1000000 处运行
-# --oformat binary: 输出纯机器码，不要 ELF 头（方便内核直接 memcpy）
+
 usr/bin/user.bin: usr/usrmain.o
-	mkdir -p usr/bin
-	ld -Ttext 0x1000000 -e usrmain usr/usrTest.o -o usr/bin/user.elf
-	objcopy -O binary -j .text -j .data -j .rodata usr/bin/user.elf usr/bin/user.bin
+	@mkdir -p usr/bin
+	# 显式指定 entry 为 usrmain，并确保输入文件是上一步生成的 usrmain.o
+	$(USER_LD) -Ttext 0x1000000 -e usrmain usr/usrmain.o -o usr/bin/user.elf
+	$(USER_OBJCOPY) -O binary -j .text -j .data -j .rodata usr/bin/user.elf $@
 
 # ISO镜像构建
-$(IMAGE_NAME).iso: boot/limine kernel usr/bin/user.bin
+$(IMAGE_NAME).iso: boot/limine kernel usr/bin/user.bin limine.conf
 	rm -rf iso_root
-	mkdir -p iso_root/boot
-	cp -v kernel/bin/kernel iso_root/boot/
-	# 2. 【新增】将用户程序复制到 ISO 根目录
-	# 这样在 limine.cfg 里就可以用 module_path: boot:///user.bin 找到它
-	cp -v usr/bin/user.bin iso_root/
 	mkdir -p iso_root/boot/limine
-	cp -v limine.conf boot/limine/limine-bios.sys boot/limine/limine-bios-cd.bin boot/limine/limine-uefi-cd.bin iso_root/boot/limine/
 	mkdir -p iso_root/EFI/BOOT
+	
+	# 拷贝最新的内核和用户二进制文件
+	cp -v kernel/bin/kernel iso_root/boot/
+	cp -v usr/bin/user.bin iso_root/
+	
+	# 拷贝最新的配置文件（确保你修改的配置能进入镜像）
+	cp -v limine.conf iso_root/boot/limine/
+	
+	# 引导程序必备文件
+	cp -v boot/limine/limine-bios.sys boot/limine/limine-bios-cd.bin boot/limine/limine-uefi-cd.bin iso_root/boot/limine/
 	cp -v boot/limine/BOOTX64.EFI iso_root/EFI/BOOT/
-	cp -v boot/limine/BOOTIA32.EFI iso_root/EFI/BOOT/
+	
+	# 打包 ISO
 	xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin \
-		-no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus \
-		-apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin \
-		-efi-boot-part --efi-boot-image --protective-msdos-label \
-		iso_root -o $(IMAGE_NAME).iso
+        -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus \
+        -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin \
+        -efi-boot-part --efi-boot-image --protective-msdos-label \
+        iso_root -o $(IMAGE_NAME).iso
 	./boot/limine/limine bios-install $(IMAGE_NAME).iso
-	rm -rf iso_root
+	@rm -rf iso_root
 
 # HDD镜像构建
 $(IMAGE_NAME).hdd: boot/limine kernel
@@ -149,7 +158,9 @@ $(IMAGE_NAME).hdd: boot/limine kernel
 .PHONY: clean
 clean:
 	$(MAKE) -C kernel clean
-	rm -rf iso_root $(IMAGE_NAME).iso $(IMAGE_NAME).hdd
+	rm -rf iso_root $(IMAGE_NAME).iso $(IMAGE_NAME).hdd 
+	rm -f usr/*.o
+	rm -rf usr/bin
 
 # 彻底清理，包括下载的依赖。
 .PHONY: distclean

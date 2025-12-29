@@ -120,7 +120,6 @@ struct gdt_entry {
  */
 
 // 64位 TSS 结构体 (Task State Segment)
-// 只有 RSP0 是我们最关心的，用来存内核栈顶地址
 struct tss_entry {
     uint32_t reserved0;
     uint64_t rsp0;       // 中断时切换到这个栈
