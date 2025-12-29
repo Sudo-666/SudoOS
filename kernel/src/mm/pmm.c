@@ -110,6 +110,7 @@ uint64_t pmm_alloc_page() {
             bit_set(i);
             free_pages -= 1;
             last_free_index = i + 1;
+            // kprintf("PMM Alloc: %lx\n", pgidx2pa(i));
             return pgidx2pa(i);
         }
     }
@@ -120,6 +121,7 @@ uint64_t pmm_alloc_page() {
             bit_set(i);
             free_pages -= 1;
             last_free_index = i + 1;
+            // kprintf("PMM Alloc: %lx\n", pgidx2pa(i));
             return pgidx2pa(i);
         }
     }

@@ -130,6 +130,7 @@ void paging_init(struct limine_memmap_response* mmap) {
     // 映射HHDM空间访问物理内存
     uintptr_t maxpa = total_pages * PAGE_SIZE;
     kprintf("Mapping HHDM: 0x0 - 0x%lx (total_pages=%ld)\n", maxpa, total_pages);
+    uintptr_t identity_end = 0x100000000; // 映射前 4GB 的物理内存（恒等映射）
 
     for (uint64_t i = 0; i < mmap->entry_count; i++) {
         struct limine_memmap_entry *entry = mmap->entries[i];
@@ -150,6 +151,14 @@ void paging_init(struct limine_memmap_response* mmap) {
                 // 使用 4KB 映射
                 vmm_map_page(kernel_pml4, pa + HHDM_OFFSET, pa, PTE_PRESENT | PTE_RW);
             }
+
+            // 恒等映射前 4GB 物理内存
+            if(start >= identity_end) continue;
+            if(end > identity_end) end = identity_end;
+            for (uintptr_t pa = start; pa < end; pa += PAGE_SIZE) {
+                // 虚拟地址 == 物理地址
+                vmm_map_page(kernel_pml4, pa, pa, PTE_PRESENT | PTE_RW);
+            }
         }
     }
     
@@ -159,4 +168,3 @@ void paging_init(struct limine_memmap_response* mmap) {
     lcr3(pml4_pa);
     kprintln("===== PAGING Init Done! CR3 switched. =====");
 }
-

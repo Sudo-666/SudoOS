@@ -1,18 +1,21 @@
-#include <stdint.h>
-#include "idt.h" // 为了引用 register_interrupt_handler
-#include "../drivers/drivers.h"
 
-// 端口定义
-#define PIT_CMD_PORT 0x43
-#define PIT_CH0_PORT 0x40
-#define PIT_BASE_FREQ 1193180
+#include "timer.h"
 
 volatile uint64_t ticks = 0; // 必须是 volatile，因为会在中断中修改
 
 // 时钟中断处理函数 (ISR)
 void timer_callback(registers_t* regs) {
     ticks++;
-    // if (ticks % 10 == 0) schedule();
+    
+    extern pcb_t* current_proc;
+    if(current_proc != NULL && current_proc->proc_state == PROC_RUNNING) {
+        current_proc->total_runtime++;
+        current_proc->time_slice--;
+        if(current_proc->time_slice <= 0) {
+            // 时间片用完，触发调度
+            schedule();
+        }
+    }
     
     // 注意：EOI (End of Interrupt) 发送逻辑通常在 idt.c 的总 isr_handler 里做，
     // 这里不需要重复发送，除非你的架构设计不同。

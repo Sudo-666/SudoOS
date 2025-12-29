@@ -114,3 +114,4 @@ pg_table_t* get_next_table(pg_table_t* pgtable, uint64_t index, bool allocate,ui
 void vmm_map_page(pg_table_t* pml4, uintptr_t va, uintptr_t pa, uint64_t flags);
 
 void paging_init(struct limine_memmap_response* mmap);
+
