@@ -1,10 +1,15 @@
 #include "sche.h"
-
+#include "../drivers/console.h"
 extern pcb_t* current_proc;
 extern list_node_t ready_queue;
 extern pcb_t* idle_proc;
 
+pcb_t* pick_next_proc() {
+   
+}
+
 void schedule() {
+    kprintln("=== Scheduling ===");
     // 简单的轮转调度算法
     uint64_t rflags = read_rflags(); // 读取 RFLAGS 寄存器
     bool interrupts_enabled = rflags & (1 << 9); // IF 位
@@ -14,11 +19,12 @@ void schedule() {
     pcb_t* prev = current_proc;
     pcb_t* next = NULL;
 
+
     // 先处理当前进程
     if(prev->proc_state == PROC_RUNNING && prev != idle_proc)
     {
         // 如果时间片用完了，把它变成 READY 并加入队列尾部
-        if(prev->time_slice == 0) {
+        if(prev->time_slice <= 0) {
             prev->proc_state = PROC_READY;
             prev->time_slice = TIME_SLICE_DEFAULT;
             list_add_before(&ready_queue, &prev->sched_node);
@@ -35,10 +41,7 @@ void schedule() {
     // 从就绪队列中取下一个进程
     // 如果就绪队列为空
     if(ready_queue.next == &ready_queue) {
-        if(prev != idle_proc && prev->proc_state == PROC_RUNNING) {
-            // 没有其他进程可运行，继续运行当前进程
-            prev->proc_state = PROC_RUNNING;
-            prev->time_slice = TIME_SLICE_DEFAULT; // 重置时间片
+        if(prev != idle_proc && prev->proc_state == PROC_RUNNING && prev->time_slice > 0) {
             if(interrupts_enabled) {
                 sti(); // 恢复中断
             }
@@ -60,6 +63,7 @@ void schedule() {
 
     // 切换到下一个进程
     if(prev != next) {
+        kprintf("Switching from PID %d to PID %d\n", prev->pid, next->pid);
         next->proc_state = PROC_RUNNING;
         current_proc = next;
         next->time_slice = TIME_SLICE_DEFAULT;

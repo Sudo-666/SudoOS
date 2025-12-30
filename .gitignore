@@ -5,3 +5,4 @@ kernel/obj
 kernel/deps
 
 flake.lock
+.vscode/

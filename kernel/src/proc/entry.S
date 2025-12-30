@@ -3,6 +3,6 @@
 
 kernel_thread_entry:
     sti
-    call %rbx
+    call *%rbx
     call kthread_exit
 
