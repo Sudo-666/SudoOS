@@ -1,5 +1,5 @@
 #pragma once
-#include "console.h"
 
-// 阻塞读取一行输入到 buffer
+void init_keyboard();
 void kinput(char* buffer, int max_len);
+char keyboard_get_char();
