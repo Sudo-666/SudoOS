@@ -1,5 +1,6 @@
 #include "pmm.h"
 #include "../drivers/console.h"
+#include "../arch/x86_64.h"
 
 // 定义HHDM_OFFSET
 uint64_t HHDM_OFFSET = 0;
@@ -370,4 +371,29 @@ void* kstack_init(size_t size) {
     
     // 循环结束后再返回栈顶地址
     return (void*)vaddr_top;
+}
+
+void kstack_free(uintptr_t kstack_base) {
+    /*
+        遍历栈的虚拟地址范围（按页遍历）。
+        通过页表找到每一页对应的物理地址（PA）。
+        调用 pmm_free_page(pa) 归还给物理内存管理器。
+        解除虚拟映射.
+    */
+    kprintln("Freeing kernel stack ...");
+    uintptr_t base = kstack_base;
+    uintptr_t top = base + KSTACK_SIZE;
+
+    for(uintptr_t vaddr = base; vaddr < top ; vaddr += PAGE_SIZE)
+    {
+        pte_t* pte = vmm_get_pte(kernel_pml4, vaddr);
+        if(pte && (*pte & PTE_PRESENT)) {
+            uint64_t pa = PTE_GET_ADDR(*pte);
+            pmm_free_page(pa);
+            *pte = 0; // 解除映射
+            invlpg((void*) vaddr); // 刷新TLB
+        }
+    }
+
+    kprintf("Kernel stack freed: %lx - %lx\n", base, top);   
 }

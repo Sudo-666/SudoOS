@@ -27,7 +27,7 @@ void schedule() {
         if(prev->time_slice <= 0) {
             prev->proc_state = PROC_READY;
             prev->time_slice = TIME_SLICE_DEFAULT;
-            list_add_before(&ready_queue, &prev->sched_node);
+            list_add_before(&prev->sched_node, &ready_queue);
         } else {
             // 时间片没用完，继续运行
             prev->proc_state = PROC_RUNNING;

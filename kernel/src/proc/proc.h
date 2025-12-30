@@ -63,6 +63,6 @@ pcb_t *alloc_new_pcb();
 pcb_t *kthread_create(pcb_t *parent, const char *name,
                       void (*kthread_func)(void *), void *arg);
 
-void kthread_exit();
+void kthread_exit(int exit_code);
 
 void free_proc(pcb_t *proc);

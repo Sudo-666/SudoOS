@@ -35,6 +35,7 @@
 
 // 设置页面大小
 #define PAGE_SIZE 4096
+#define KSTACK_SIZE PAGE_SIZE * 4 // 每个内核栈大小：16KB
 
 // 向上取整：(x + 4095) & ~4095
 #define ALIGN_UP(addr, align)   (((addr) + (align) - 1) & ~((align) - 1))
@@ -126,3 +127,5 @@ extern uint64_t kstack_ptr;
  * @return void* 栈顶地址
  */
 void* kstack_init(size_t size);
+
+void kstack_free(uintptr_t kstack_base);

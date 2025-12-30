@@ -97,13 +97,41 @@ pcb_t *kthread_create(pcb_t *parent, const char *name,
   return proc;
 }
 
-void kthread_exit() {
+void kthread_exit(int exit_code) {
   cli(); // 关中断
   pcb_t* proc = current_proc;
+  // 标记为僵尸状态
   proc->proc_state = PROC_ZOMBIE;
-  proc->exit_code = 0;
-  kprintf("Thread (PID %d) exited.\n", current_proc->pid);
+  // 设置退出码
+  proc->exit_code = exit_code;
+  kprintf("Thread (PID %d) exited with code %d.\n", current_proc->pid, exit_code);
   
   schedule(); // 切换到其他进程
   // 永远不会返回这里
+}
+
+void free_proc(pcb_t * proc) 
+{
+  if(proc == NULL) return;
+  if(proc->proc_state != PROC_ZOMBIE) {
+    kprintf("Warning: free_proc called on non-zombie process PID %d\n", proc->pid);
+  }
+
+  // 从进程列表中移除
+  list_del(&proc->proc_list_node);
+
+  // 从就绪队列中移除（如果在队列中）
+  if(proc->sched_node.next != &proc->sched_node) {
+    list_del(&proc->sched_node);
+  }
+
+  // 释放内核栈
+  kstack_free(proc->kstack_base);
+  // 释放内存空间（如果有）
+  if(proc->mm) {
+    // mmfree(proc->mm); // 假设有 mmfree 函数
+  }
+  // 释放 PCB 结构体
+  kfree(proc);
+
 }
