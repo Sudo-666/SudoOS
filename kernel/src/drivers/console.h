@@ -14,3 +14,4 @@ void kprint_char(char c);           // 打印单个字符
 void kprint_uint64(uint64_t val);   // 打印64位整数
 void kprint_hex(uint64_t n);        // 打印16进制
 void kprintf(const char* format, ...);
+void console_scroll(int lines);

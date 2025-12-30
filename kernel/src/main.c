@@ -130,6 +130,7 @@ void kernel_init() {
     kprintln("GDT initialized.");
     idt_init();
     kprintln("IDT initialized.");
+    init_keyboard();
 
     // 初始化内存管理子系统
     mm_init();
