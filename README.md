@@ -431,7 +431,171 @@ make run
 4. **内核栈 (Kernel Stack)**: `kstack_init()` 分配并映射新的内核栈。
 5. **栈切换**: `set_tss_stack()` 将新分配的内核栈地址填入 TSS 的 `RSP0` 字段。这意味着当用户态发生中断或系统调用时，CPU 会自动切换到这个内核栈。
 
-## 3. 用户程序加载 (User Program Loading)
+## 内核线程模型
+
+本设计实现了一个基于 **1:1 模型** 的内核级线程（Kernel Thread）管理系统。内核线程是操作系统调度的基本单位，拥有独立的内核栈和硬件上下文，但共享内存地址空间（`mm_struct`）。
+
+系统支持以下核心特性：
+
+* **PCB 管理**：基于 `pcb_t` 结构体管理进程/线程状态。
+* **抢占式调度**：基于时间片的轮转调度算法（Round-Robin）。
+* **生命周期管理**：支持线程创建、运行、退出（僵尸态）和资源回收。
+* **上下文切换**：基于软件的栈切换与硬件状态保存。
+
+## 2. 数据结构设计 (Data Structure Design)
+
+### 2.1 进程控制块 (PCB)
+
+`pcb_t` 是核心数据结构，定义于 `proc.h`。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `pid` | `int` | 唯一进程标识符，由 `next_pid` 自增生成。 |
+| `name` | `char[]` | 线程名称，最大长度 32 字节。 |
+| `proc_state` | `proc_state_t` | 当前状态 (RUNNING, READY, BLOCKED, ZOMBIE)。 |
+| `rsp` | `uint64_t` | 上下文切换时的内核栈顶指针。 |
+| `kstack_base` | `uint64_t` | 内核栈的基地址（低地址），用于释放内存。 |
+| `context` | `context_t*` | 指向栈上保存的寄存器上下文的指针。 |
+| `mm` | `mm_struct*` | 内存地址空间指针（内核线程共享父进程的 mm）。 |
+| `parent` | `pcb_t*` | 父进程指针。 |
+| `proc_list_node` | `list_node_t` | 链接到全局进程链表 `proc_list`。 |
+| `sched_node` | `list_node_t` | 链接到就绪队列 `ready_queue`。 |
+| `exit_code` | `int` | 线程退出时的返回值。 |
+
+### 2.2 全局链表
+
+* **`proc_list`**：包含系统中所有的 PCB（包括运行中、就绪、阻塞和僵尸进程）。
+* **`ready_queue`**：仅包含处于 `PROC_READY` 状态，等待被 CPU 调度的进程。
+
+---
+
+## 3. 核心机制与状态机
+
+### 3.1 线程状态流转
+
+```mermaid
+graph LR
+    Create((创建)) --> READY
+    READY -->|schedule| RUNNING
+    RUNNING -->|时间片耗尽| READY
+    RUNNING -->|kthread_exit| ZOMBIE
+    ZOMBIE -->|free_proc| Destroy((销毁))
+
+```
+
+* **READY**: 已分配资源，在 `ready_queue` 中等待调度。
+* **RUNNING**: 当前正在 CPU 上执行（`current_proc` 指向该线程）。
+* **ZOMBIE**: 线程已退出，但内核栈和 PCB 尚未回收。
+* **BLOCKED**: (预留) 等待外部事件。
+
+### 3.2 僵尸进程机制
+
+为了解决“线程无法释放当前正在使用的栈”这一悖论，采用了 **Exit-Zombie-Reap** 模型：
+
+1. **Exit**: 线程调用 `kthread_exit`，状态变为 `ZOMBIE`，移出就绪队列，但保留内核栈，随后主动让出 CPU。
+2. **Reap**: 父进程或 Idle 线程通过 `free_proc` 清理 `ZOMBIE` 状态的线程，释放其物理内存和 PCB。
+
+---
+
+## 4. 详细接口设计与实现
+
+### 4.1 初始化 (`proc_init`)
+
+**功能**：初始化进程管理子系统，创建 Idle 进程。
+**实现步骤**：
+
+1. 初始化全局链表 `proc_list` 和 `ready_queue`。
+2. 通过 `alloc_new_pcb` 分配 Idle 进程的 PCB。
+3. 设置 Idle 进程名为 "idle"，状态为 `PROC_RUNNING`。
+4. 将 `current_proc` 和 `idle_proc` 指向该 PCB。
+5. 将 Idle 进程加入 `proc_list`。
+
+### 4.2 线程创建 (`kthread_create`)
+
+**功能**：创建一个新的内核线程，并伪造其上下文使其能被 `schedule` 调度。
+**参数**：
+
+* `parent`: 父进程 PCB。
+* `name`: 线程名。
+* `kthread_func`: 线程入口函数指针。
+* `arg`: 传递给入口函数的参数。
+
+**实现步骤**：
+
+1. **分配 PCB**：调用 `alloc_new_pcb`，分配内存并清零。
+2. **继承资源**：共享父进程的 `mm` 指针。
+3. **分配内核栈**：调用 `kstack_init(KSTACK_SIZE)` 分配物理页并映射，记录 `kstack_base`。
+4. **伪造上下文 (Context Forging)**：
+* 计算栈顶 `rsp`。
+* 在栈顶预留 `context_t` 空间。
+* 设置 `context->rip` 指向 **`kernel_thread_entry`** (汇编跳板)。
+* 设置 `context->rdi` 为 `arg` (作为第一个参数)。
+* 设置 `context->rbx` 为 `kthread_func` (被跳板调用)。
+
+
+5. **加入队列**：将新线程状态设为 `PROC_READY`，加入 `proc_list` 和 `ready_queue`。
+
+### 4.3 线程入口跳板 (`kernel_thread_entry`)
+
+**位置**：`proc/entry.S`
+**设计意图**：统一所有内核线程的启动和退出行为。
+**流程**：
+
+1. `sti`：开中断（新线程启动时默认开中断）。
+2. `call *%rbx`：调用实际的线程函数（创建时存入 `rbx`）。
+3. `call kthread_exit`：如果线程函数返回，自动调用退出函数，防止跑飞。
+
+### 4.4 调度器 (`schedule`)
+
+**位置**：`proc/sche.c`
+**功能**：基于时间片的轮转调度。
+**实现步骤**：
+
+1. **保护现场**：读取 `RFLAGS` 保存中断状态，执行 `cli()` 关中断。
+2. **处理当前进程 (`prev`)**：
+* 若为 `RUNNING` 且时间片耗尽 (`<=0`)：状态改为 `READY`，重置时间片，移至 `ready_queue` 尾部。
+* 若时间片未耗尽：直接返回 (`sti` 恢复中断)。
+
+
+3. **选择下一个进程 (`next`)**：
+* 若 `ready_queue` 为空：选择 `idle_proc`。
+* 若不为空：取出队头节点，从队列移除，获取其 PCB。
+
+
+4. **上下文切换**：
+* 若 `prev != next`：
+* 设置 `next` 为 `RUNNING`，更新 `current_proc`。
+* **TSS 更新**：`set_tss_stack(next->rsp)`，确保下一次中断能正确找到内核栈。
+* **页表切换**：若 `mm` 不同，执行 `lcr3`。
+* **汇编切换**：`switch_to(&prev->context, next->context)`。
+
+
+5. **恢复现场**：恢复中断状态 (`sti`)。
+
+### 4.5 线程退出 (`kthread_exit`)
+
+**功能**：终止当前线程运行。
+**实现步骤**：
+
+1. `cli()` 关中断。
+2. 将当前进程状态设为 `PROC_ZOMBIE`。
+3. 设置 `exit_code`。
+4. **关键**：调用 `schedule()`。调度器会发现当前进程不再是 `RUNNING` 且不在就绪队列中，从而不再调度它，永久切出。
+
+### 4.6 资源回收 (`free_proc`)
+
+**功能**：回收僵尸进程占用的物理资源。
+**注意**：此函数不能由目标进程自己调用。
+**实现步骤**：
+
+1. 检查进程状态是否为 `PROC_ZOMBIE`。
+2. 从 `proc_list` 和 `ready_queue` (如果有) 中移除节点。
+3. **释放内核栈**：调用 `kstack_free` 释放对应的物理页框。
+4. **释放 PCB**：调用 `kfree`。
+
+
+
+## 用户程序测试 (User Program Loading)
 
 内存初始化完成后，`kmain` 开始准备运行用户程序。
 
@@ -513,3 +677,4 @@ __asm__ volatile (
 ### 5.4 程序结束
 
 用户程序 `usrmain` 最后进入死循环 `while(1)`，防止函数返回导致指令指针跑飞。
+

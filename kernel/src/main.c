@@ -140,17 +140,16 @@ void kernel_init() {
 
 
 void thread_a(void* arg) {
-    while(1) {
+    for(int i=1;i<=1000000;i++) {
         kprintf("A");
-        // 延时，否则屏幕刷太快看不清
-        for(int i=0; i<1000000; i++) __asm__("pause");
+        for(int j=0;j<1000000;j++); // 简单延时
     }
 }
 
 void thread_b(void* arg) {
-    while(1) {
+    for(int i=1;i<=1000000;i++) {
         kprintf("B");
-        for(int i=0; i<1000000; i++) __asm__("pause");
+        for(int j=0;j<1000000;j++); // 简单延时
     }
 }
 
@@ -174,8 +173,6 @@ void debug_proc() {
         node = node->next;
     }
 }
-
-
 
 /**
  * @brief 入口

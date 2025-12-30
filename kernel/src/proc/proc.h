@@ -65,4 +65,8 @@ pcb_t *kthread_create(pcb_t *parent, const char *name,
 
 void kthread_exit(int exit_code);
 
+/**
+ * @brief 释放一个 PCB 及其相关资源
+ * @param proc 指向要释放的 PCB 结构体
+ */
 void free_proc(pcb_t *proc);
