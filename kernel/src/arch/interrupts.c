@@ -97,6 +97,17 @@ void isr_handler(registers_t *regs)
         syscall_handler(regs);
         return;
     }
+
+    // 只有来自 PIC 8259A 的中断才需要这个
+    // 2. 在调用具体的 handler 之前，先发送 EOI！
+    // 这样即使 handler 内部触发了调度（切换了栈），PIC 也能收到 EOI，
+    // 从而允许下一个时间片的中断进来。
+    if (regs->int_no >= 32 && regs->int_no <= 47)
+    {
+        if (regs->int_no >= 40)
+            outb(0xA0, 0x20); // 先发送从片 EOI（若来自从片）
+        outb(0x20, 0x20);     // 再发送主片 EOI
+    }
     if (interrupt_handlers[regs->int_no] != 0)
     {
         isr_t handler = interrupt_handlers[regs->int_no];
@@ -118,11 +129,5 @@ void isr_handler(registers_t *regs)
                 hlt();
         }
     }
-    // 只有来自 PIC 8259A 的中断才需要这个
-    if (regs->int_no >= 32 && regs->int_no <= 47)
-    {
-        if (regs->int_no >= 40)
-            outb(0xA0, 0x20); // 先发送从片 EOI（若来自从片）
-        outb(0x20, 0x20);     // 再发送主片 EOI
-    }
+    
 }

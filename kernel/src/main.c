@@ -154,14 +154,33 @@ void thread_b(void* arg) {
     }
 }
 
+void debug_proc() {
+    extern pcb_t* current_proc;
+    extern list_node_t proc_list;
+    extern list_node_t ready_queue;
+    kprintf("Current Process PID: %d, Name: %s\n", current_proc->pid, current_proc->name);
+    kprintln("All Processes:\n");
+    list_node_t* node = proc_list.next;
+    while(node != &proc_list) {
+        pcb_t* proc = container_of(node, pcb_t, proc_list_node);
+        kprintf("PID: %d, Name: %s, State: %d\n", proc->pid, proc->name, proc->proc_state);
+        node = node->next;
+    }
+    kprintln("Ready Queue:\n");
+    node = ready_queue.next;
+    while(node != &ready_queue) {
+        pcb_t* proc = container_of(node, pcb_t, sched_node);
+        kprintf("PID: %d, Name: %s\n", proc->pid, proc->name);
+        node = node->next;
+    }
+}
+
+
 
 /**
  * @brief 入口
  * 
  */
-
-
-
 void kmain(void) {
     
     kernel_init();
@@ -217,7 +236,7 @@ void kmain(void) {
     extern pcb_t* current_proc;
     kthread_create(current_proc,"thread_a",thread_a, NULL);
     kthread_create(current_proc,"thread_b",thread_b, NULL);
-
+    debug_proc();
     hcf();
  
 }

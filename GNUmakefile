@@ -14,9 +14,18 @@ HOST_CPPFLAGS :=
 HOST_LDFLAGS :=
 HOST_LIBS :=
 
-USER_CC      := x86_64-elf-gcc
-USER_LD      := x86_64-elf-ld
-USER_OBJCOPY := x86_64-elf-objcopy
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)  # macOS
+    USER_CC      := x86_64-elf-gcc
+	USER_LD      := x86_64-elf-ld
+	USER_OBJCOPY := x86_64-elf-objcopy
+endif
+
+ifeq ($(UNAME_S),Linux)  # Linux
+	USER_CC      := gcc
+	USER_LD      := ld
+	USER_OBJCOPY := objcopy
+endif
 
 # 设置构建目标
 # 构建ISO镜像文件
