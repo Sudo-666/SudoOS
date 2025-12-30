@@ -26,6 +26,7 @@ struct vma_struct {
 // 代表了一个进程完整的虚拟地址空间。
 struct mm_struct {
     pg_table_t* pml4;       // 该进程的顶级页表指针
+    uint64_t pml4_pa;      // 该页表的物理地址
     list_node_t vma_list;   // 串联了该进程拥有的所有 VMA (虚拟内存区域)。
     int map_count;          // vma的数量
     int ref_count;          // 记录有多少个PCB正在引用这个mm
