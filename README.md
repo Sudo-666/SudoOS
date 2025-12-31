@@ -386,130 +386,468 @@ CR3 Register (存放 PML4 物理地址)
       |            +---------------------------------> 下一级表的物理基地址 (4KB对齐)
       +----------------------------------------------> No Execute (1=禁止执行代码)
 ```
+---
+
+# 内核线程模型
+
+本设计实现了一个基于 **1:1 模型** 的内核级线程（Kernel Thread）管理系统。内核线程是操作系统调度的基本单位，拥有独立的内核栈和硬件上下文，但共享内存地址空间（`mm_struct`）。
+
+系统支持以下核心特性：
+
+* **PCB 管理**：基于 `pcb_t` 结构体管理进程/线程状态。
+* **抢占式调度**：基于时间片的轮转调度算法（Round-Robin）。
+* **生命周期管理**：支持线程创建、运行、退出（僵尸态）和资源回收。
+* **上下文切换**：基于软件的栈切换与硬件状态保存。
+
+## 2. 数据结构设计 (Data Structure Design)
+
+### 2.1 进程控制块 (PCB)
+
+`pcb_t` 是核心数据结构，定义于 `proc.h`。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `pid` | `int` | 唯一进程标识符，由 `next_pid` 自增生成。 |
+| `name` | `char[]` | 线程名称，最大长度 32 字节。 |
+| `proc_state` | `proc_state_t` | 当前状态 (RUNNING, READY, BLOCKED, ZOMBIE)。 |
+| `rsp` | `uint64_t` | 上下文切换时的内核栈顶指针。 |
+| `kstack_base` | `uint64_t` | 内核栈的基地址（低地址），用于释放内存。 |
+| `context` | `context_t*` | 指向栈上保存的寄存器上下文的指针。 |
+| `mm` | `mm_struct*` | 内存地址空间指针（内核线程共享父进程的 mm）。 |
+| `parent` | `pcb_t*` | 父进程指针。 |
+| `proc_list_node` | `list_node_t` | 链接到全局进程链表 `proc_list`。 |
+| `sched_node` | `list_node_t` | 链接到就绪队列 `ready_queue`。 |
+| `exit_code` | `int` | 线程退出时的返回值。 |
+
+### 2.2 全局链表
+
+* **`proc_list`**：包含系统中所有的 PCB（包括运行中、就绪、阻塞和僵尸进程）。
+* **`ready_queue`**：仅包含处于 `PROC_READY` 状态，等待被 CPU 调度的进程。
 
 ---
 
-# 在qemu上运行
+## 3. 核心机制与状态机
 
-```bash
-make run
+### 3.1 线程状态流转
+
+```mermaid
+graph LR
+    Create((创建)) --> READY
+    READY -->|schedule| RUNNING
+    RUNNING -->|时间片耗尽| READY
+    RUNNING -->|kthread_exit| ZOMBIE
+    ZOMBIE -->|free_proc| Destroy((销毁))
+
 ```
 
-# 内核处理流程
+* **READY**: 已分配资源，在 `ready_queue` 中等待调度。
+* **RUNNING**: 当前正在 CPU 上执行（`current_proc` 指向该线程）。
+* **ZOMBIE**: 线程已退出，但内核栈和 PCB 尚未回收。
+* **BLOCKED**: (预留) 等待外部事件。
 
-## 1. 引导阶段 (Boot Phase)
+### 3.2 僵尸进程机制
 
-内核由 **Limine** 引导加载程序启动。
+为了解决“线程无法释放当前正在使用的栈”这一悖论，采用了 **Exit-Zombie-Reap** 模型：
 
-- **配置文件**：`SudoOS/limine.conf` 定义了引导协议、内核路径和模块路径。
-- 内核路径：`boot():/boot/kernel`
-- 用户程序模块：`boot():/user.bin`
+1. **Exit**: 线程调用 `kthread_exit`，状态变为 `ZOMBIE`，移出就绪队列，但保留内核栈，随后主动让出 CPU。
+2. **Reap**: 父进程或 Idle 线程通过 `free_proc` 清理 `ZOMBIE` 状态的线程，释放其物理内存和 PCB。
 
-- **Limine 请求**：内核在 `SudoOS/kernel/src/main.c` 中声明了一系列请求结构体，Limine 在加载内核时会填充这些结构体，提供硬件信息。
-- `framebuffer_request`: 获取显存信息用于显示。
-- `memmap_request`: 获取物理内存布局。
-- `hhdm_request`: 获取高半核直接映射 (HHDM) 偏移量。
-- `module_request`: 获取加载的模块（即用户程序 `user.bin`）。
+---
 
-## 2. 内核初始化 (Kernel Initialization)
+## 4. 详细接口设计与实现
 
-入口函数为 `kmain`，它首先调用 `kernel_init` 进行基础硬件和子系统初始化。
+### 4.1 初始化 (`proc_init`)
 
-### 2.1 基础硬件与中断初始化
+**功能**：初始化进程管理子系统，创建 Idle 进程。
+**实现步骤**：
 
-1. **GDT (全局描述符表)**: `gdt_init()` 初始化 GDT，设置内核态和用户态的代码段/数据段描述符，以及 TSS (任务状态段)。
-2. **IDT (中断描述符表)**: `idt_init()` 初始化 IDT，配置异常处理、硬件中断（时钟、键盘）以及系统调用（0x80 中断）的入口。
-3. **控制台**: `console_init()` 利用 Limine 提供的 framebuffer 初始化图形化控制台，支持 `kprintf` 输出。
+1. 初始化全局链表 `proc_list` 和 `ready_queue`。
+2. 通过 `alloc_new_pcb` 分配 Idle 进程的 PCB。
+3. 设置 Idle 进程名为 "idle"，状态为 `PROC_RUNNING`。
+4. 将 `current_proc` 和 `idle_proc` 指向该 PCB。
+5. 将 Idle 进程加入 `proc_list`。
 
-### 2.2 内存管理初始化 (`mm_init`)
+### 4.2 线程创建 (`kthread_create`)
 
-函数 `mm_init` 负责构建内核的内存环境：
+**功能**：创建一个新的内核线程，并伪造其上下文使其能被 `schedule` 调度。
+**参数**：
 
-1. **物理内存管理 (PMM)**: `pmm_init()` 解析 Limine 提供的内存图 (Memmap)，利用位图 (Bitmap) 管理物理页的分配与释放。
-2. **分页机制 (Paging)**: `paging_init()` 建立页表。它分配新的 PML4 页表，映射内核本身、HHDM 区域（用于访问所有物理内存），并加载 CR3 寄存器激活新页表。
-3. **内核堆 (Kernel Heap)**: `kheap_init()` 初始化内核堆，允许动态内存分配 (`kmalloc`)。
-4. **内核栈 (Kernel Stack)**: `kstack_init()` 分配并映射新的内核栈。
-5. **栈切换**: `set_tss_stack()` 将新分配的内核栈地址填入 TSS 的 `RSP0` 字段。这意味着当用户态发生中断或系统调用时，CPU 会自动切换到这个内核栈。
+* `parent`: 父进程 PCB。
+* `name`: 线程名。
+* `kthread_func`: 线程入口函数指针。
+* `arg`: 传递给入口函数的参数。
 
-## 3. 用户程序加载 (User Program Loading)
+**实现步骤**：
 
-内存初始化完成后，`kmain` 开始准备运行用户程序。
+1. **分配 PCB**：调用 `alloc_new_pcb`，分配内存并清零。
+2. **继承资源**：共享父进程的 `mm` 指针。
+3. **分配内核栈**：调用 `kstack_init(KSTACK_SIZE)` 分配物理页并映射，记录 `kstack_base`。
+4. **伪造上下文 (Context Forging)**：
+* 计算栈顶 `rsp`。
+* 在栈顶预留 `context_t` 空间。
+* 设置 `context->rip` 指向 **`kernel_thread_entry`** (汇编跳板)。
+* 设置 `context->rdi` 为 `arg` (作为第一个参数)。
+* 设置 `context->rbx` 为 `kthread_func` (被跳板调用)。
 
-### 3.1 获取模块
 
-内核通过 `module_request` 检查 Limine 是否加载了用户程序模块。
+5. **加入队列**：将新线程状态设为 `PROC_READY`，加入 `proc_list` 和 `ready_queue`。
+
+### 4.3 线程入口跳板 (`kernel_thread_entry`)
+
+**位置**：`proc/entry.S`
+**设计意图**：统一所有内核线程的启动和退出行为。
+**流程**：
+
+1. `sti`：开中断（新线程启动时默认开中断）。
+2. `call *%rbx`：调用实际的线程函数（创建时存入 `rbx`）。
+3. `call kthread_exit`：如果线程函数返回，自动调用退出函数，防止跑飞。
+
+### 4.4 调度器 (`schedule`)
+
+**位置**：`proc/sche.c`
+**功能**：基于时间片的轮转调度。
+**实现步骤**：
+
+1. **保护现场**：读取 `RFLAGS` 保存中断状态，执行 `cli()` 关中断。
+2. **处理当前进程 (`prev`)**：
+* 若为 `RUNNING` 且时间片耗尽 (`<=0`)：状态改为 `READY`，重置时间片，移至 `ready_queue` 尾部。
+* 若时间片未耗尽：直接返回 (`sti` 恢复中断)。
+
+
+3. **选择下一个进程 (`next`)**：
+* 若 `ready_queue` 为空：选择 `idle_proc`。
+* 若不为空：取出队头节点，从队列移除，获取其 PCB。
+
+
+4. **上下文切换**：
+* 若 `prev != next`：
+* 设置 `next` 为 `RUNNING`，更新 `current_proc`。
+* **TSS 更新**：`set_tss_stack(next->rsp)`，确保下一次中断能正确找到内核栈。
+* **页表切换**：若 `mm` 不同，执行 `lcr3`。
+* **汇编切换**：`switch_to(&prev->context, next->context)`。
+
+
+5. **恢复现场**：恢复中断状态 (`sti`)。
+
+### 4.5 线程退出 (`kthread_exit`)
+
+**功能**：终止当前线程运行。
+**实现步骤**：
+
+1. `cli()` 关中断。
+2. 将当前进程状态设为 `PROC_ZOMBIE`。
+3. 设置 `exit_code`。
+4. **关键**：调用 `schedule()`。调度器会发现当前进程不再是 `RUNNING` 且不在就绪队列中，从而不再调度它，永久切出。
+
+### 4.6 资源回收 (`free_proc`)
+
+**功能**：回收僵尸进程占用的物理资源。
+**注意**：此函数不能由目标进程自己调用。
+**实现步骤**：
+
+1. 检查进程状态是否为 `PROC_ZOMBIE`。
+2. 从 `proc_list` 和 `ready_queue` (如果有) 中移除节点。
+3. **释放内核栈**：调用 `kstack_free` 释放对应的物理页框。
+4. **释放 PCB**：调用 `kfree`。
+
+---
+
+这是一份关于 **用户地址空间管理 (User Address Space Management)** 的详细设计与实现指导文档。基于你现有的 `src/mm/vmm.h` 和 `src/mm/paging.c`，我们需要完善 `mm_struct` 的管理逻辑，使得每个进程拥有独立的页表（PML4），并能正确管理虚拟内存区域（VMA）。
+
+---
+
+# 用户地址空间管理 (VMM) 
+
+## 1. 模块概述
+
+本模块负责管理用户进程的虚拟内存。它的核心任务是：
+
+1. **生命周期管理**：创建 (`mm_create`) 和销毁 (`mm_destroy`) 进程的地址空间。
+2. **内核共享**：确保所有用户进程的页表高半部分（Kernel Space）正确映射到内核，使中断和系统调用能正常工作。
+3. **区域管理 (VMA)**：记录用户空间中哪些地址是合法的（代码段、数据段、堆、栈），以及它们的权限。
+
+
+## 2. 数据结构设计
+
+### 2.1 `struct vma_struct` (虚拟内存区域)
+
+代表一段连续的虚拟地址范围（例如：代码段 0x400000 - 0x401000）。
 
 ```c
-struct limine_module_response *module_response = module_request.response;
-// 获取第一个模块 (user.bin)
-struct limine_file *user_file = module_response->modules[0];
+// src/mm/vmm.h
+
+struct vma_struct {
+    list_node_t list_node;   // 链表节点，用于串联该进程的所有 VMA
+    struct mm_struct *mm;    // 反向指针，指向所属的 mm_struct
+    
+    uint64_t vm_start;       // 起始虚拟地址 (Page Aligned)
+    uint64_t vm_end;         // 结束虚拟地址 (vm_start + size)
+    uint64_t vm_flags;       // 权限标志 (VM_READ, VM_WRITE, VM_EXEC 等)
+    uint64_t vm_file_offset; // (可选) 如果是从文件加载的，记录文件偏移
+    // struct file *vm_file; // (进阶) 如果是内存映射文件 mmap
+};
 
 ```
 
-### 3.2 建立用户空间映射
+### 2.2 `struct mm_struct` (内存描述符)
 
-内核为用户程序定义了固定的虚拟地址布局：
-
-- **代码段基址**: `0x1000000` (16MB)
-- **用户栈基址**: `0x80000000` (2GB)
-
-加载过程如下：
-
-1. **分配物理页**: 根据 `user.bin` 文件的大小，计算需要多少页，并调用 `pmm_alloc_page()` 分配相应的物理内存。
-2. **映射页表**: 使用 `vmm_map_page()` 将用户虚拟地址 (`0x1000000`) 映射到分配的物理地址。关键在于设置了 `PTE_USER` 标志，允许 Ring 3 访问该内存。
-3. **拷贝代码**: 利用 HHDM 机制，将 Limine 模块中的原始数据 (`user_file->address`) 拷贝到刚分配的物理内存中。
-4. **准备用户栈**: 同样地，为用户栈分配物理页并映射到 `0x80000000`，同样赋予 `PTE_USER` 权限。
-
-## 4. 切换至用户态 (Ring 3 Switch)
-
-一切准备就绪后，内核调用 `enter_user_mode` 函数进行特权级切换。
-
-### 4.1 构造中断返回帧 (Trap Frame)
-
-`enter_user_mode` 是一个内联汇编函数，它模拟了中断返回的动作来“返回”到用户态。它按顺序压入以下寄存器值（x86_64 `iretq` 指令的要求）：
-
-1. **SS (Stack Segment)**: 用户数据段选择子 (`0x1B` = User Data Selector `0x18` | RPL `3`)。
-2. **RSP (Stack Pointer)**: 用户栈顶地址 (`user_stack_va + PAGE_SIZE`)。
-3. **RFLAGS**: 标志寄存器，特别是开启中断标志位 (`IF` = 1, `0x200`)。
-4. **CS (Code Segment)**: 用户代码段选择子 (`0x23` = User Code Selector `0x20` | RPL `3`)。
-5. **RIP (Instruction Pointer)**: 用户程序入口地址 (`0x1000000`)。
-
-### 4.2 执行切换
-
-- **设置段寄存器**: 将 `DS`, `ES`, `FS`, `GS` 设置为用户数据段选择子 (`0x1B`)。
-- **IRETQ**: 执行 `iretq` 指令。CPU 弹出栈上的上下文，跳转到 `RIP` (`0x1000000`)，并将特权级 (CPL) 从 0 切换到 3。
-
-## 5. 用户程序执行与系统调用
-
-### 5.1 用户代码执行
-
-CPU 开始执行位于 `0x1000000` 的用户代码（即 `user.bin`）。
-用户程序的入口是 `usrmain`（在链接脚本或 `ld` 命令中指定了 `-e usrmain`）。`usrmain` 调用 `print()` 函数输出字符串。
-
-### 5.2 触发系统调用
-
-`print()` 函数内部封装了系统调用逻辑：
+代表一个进程完整的地址空间。
 
 ```c
-// usr/lib/syscall.c
-__asm__ volatile (
-    "int $0x80"
-    : "=a" (ret)
-    : "a" (num), ...
-);
+// src/mm/vmm.h
+
+struct mm_struct {
+    pg_table_t* pml4;        // 【关键】该进程的顶级页表虚拟地址
+    uint64_t pml4_pa;        // 【新增】顶级页表的物理地址 (方便 context switch 时 load cr3)
+
+    list_node_t vma_list;    // VMA 链表头
+    struct vma_struct* mmap_cache; // 最近一次访问的 VMA (缓存优化查询速度)
+
+    // 数据统计
+    int map_count;           // VMA 的数量
+    int ref_count;           // 引用计数 (用于多线程共享 mm)
+
+    // 关键段边界 (用于 brk, stack extend 等)
+    uint64_t start_code, end_code;
+    uint64_t start_data, end_data;
+    uint64_t start_brk, brk;       // 堆的起始和当前顶端
+    uint64_t start_stack;          // 栈底
+};
 
 ```
 
-它执行 `int 0x80` 指令，触发 128 号中断。
+---
 
-### 5.3 内核处理系统调用
+## 3. 核心函数原型
 
-1. **进入内核**: CPU 捕获异常，根据 IDT 跳转到 `isr128` (在 `src/arch/isr.S` 中定义)。
-2. **保存上下文**: `isr128` 将所有通用寄存器压栈，保存用户态现场。
-3. **分发处理**: 调用 C 函数 `isr_handler`。
-4. **执行服务**: `isr_handler` 识别出中断号 128，调用 `syscall_handler`。`syscall_handler` 根据 `RAX` 中的系统调用号（如 `SYS_WRITE`），执行打印操作（调用 `kprintf`）。
-5. **返回用户态**: 处理完成后，代码执行 `iretq`，恢复之前保存的上下文，回到用户程序继续执行。
+我们需要在 `src/mm/vmm.h` 或 `src/proc/proc.h` 中补充以下函数原型。
 
-### 5.4 程序结束
+```c
+// ================= API =================
 
-用户程序 `usrmain` 最后进入死循环 `while(1)`，防止函数返回导致指令指针跑飞。
+// 1. 创建一个新的地址空间 (用于 fork 或 exec)
+struct mm_struct * mm_alloc();
+
+// 2. 销毁地址空间 (用于 exit)
+void mm_free(struct mm_struct *mm);
+
+// 4. 在地址空间中映射一段区域 (用于 load_elf)
+// 包含：申请 VMA + 申请物理页 + 修改页表映射
+bool mm_map_range(struct mm_struct *mm, uint64_t va, size_t size, uint64_t vm_flags);
+
+```
+
+---
+
+## 1. 进程与线程模型 (Process & Thread Model)
+
+SudoOS 采用 **1:1 核心级线程模型**。在内核调度器的视角中，没有“进程”与“线程”的严格区分，基本调度单位是 **PCB (Process Control Block)**。
+
+### 1.1 数据结构：PCB (`pcb_t`)
+
+PCB (`src/proc/proc.h`) 是描述一个执行流的核心结构，包含了硬件上下文、内存空间和调度信息。
+
+| 字段 | 描述 | 关键用途 |
+| --- | --- | --- |
+| **`context`** | 内核上下文指针 | 指向内核栈顶。保存了 `switch_to` 切换时所需的 Callee-Saved 寄存器 (`rbx`, `rbp`, `r12`-`r15`) 和 `rip`。 |
+| **`trap_frame`** | 中断帧指针 | 指向中断发生时保存的寄存器状态（系统调用或时钟中断时保存的现场）。 |
+| **`mm`** | 内存描述符 (`mm_struct`) | 指向页表 (PML4) 和 VMA 链表。**内核线程此项为 NULL 或共享内核映射，用户进程此项指向独立的页表。** |
+| **`kstack_base`** | 内核栈基址 | 用于 TSS 的 `RSP0` 设置。当从 Ring 3 特权级进入 Ring 0（如中断/系统调用）时，CPU 会自动切换到此栈。 |
+| **`rsp`** | 当前栈指针 | 调度器切换时更新此值。 |
+| **`proc_state`** | 进程状态 | `RUNNING`, `READY`, `BLOCKED`, `ZOMBIE`。 |
+
+### 1.2 进程分类
+
+SudoOS 支持两种类型的执行流，它们共享相同的 PCB 结构，但内存视图不同：
+
+1. **内核线程 (Kernel Thread)**:
+* **运行级别**: Ring 0。
+* **内存空间**: 共享内核的 PML4 页表，没有独立的用户空间映射。
+* **创建方式**: `kthread_create()`。
+* **典型例子**: `Idle` 进程（PID 0）。
+
+
+2. **用户进程 (User Process)**:
+* **运行级别**: 用户态运行在 Ring 3，陷入内核后运行在 Ring 0。
+* **内存空间**: 拥有独立的 `mm_struct` 和 PML4 页表。拥有独立的虚拟地址空间（代码段、数据段、堆、栈）。
+* **创建方式**: `create_user_process()` 加载 ELF 文件。
+* **典型例子**: `init` 进程（PID 1）。
+
+
+
+### 1.3 调度策略
+
+* **算法**: 时间片轮转调度 (Round-Robin)。
+* **机制**: `src/proc/sche.c` 维护一个 `ready_queue` (双向循环链表)。
+* **触发**:
+1. **主动调度**: 进程阻塞或退出时调用 `schedule()`。
+2. **抢占调度**: 时钟中断 (`timer_callback`) 递减 `time_slice`，减为 0 时强制调用 `schedule()`。
+
+
+
+---
+
+#  内核启动全流程 (Bootstrapping Flow)
+
+本节详细描述从计算机上电到执行第一行用户代码的完整路径。
+
+### 阶段一：引导程序 (Limine Bootloader)
+
+1. **加载内核**: Limine 将 `kernel` ELF 文件加载到物理内存。
+2. **协议请求**: 处理 `limine_requests` (HHDM, Memmap, Framebuffer 等)。
+3. **进入内核**: 跳转到内核入口点 `kmain` (`src/main.c`)。此时 CPU 处于 64 位长模式，分页已开启，但使用的是 Limine 提供的临时页表。
+
+### 阶段二：内核初始化 (`kernel_init`)
+
+内核接管硬件控制权，建立自己的执行环境。
+
+1. **GDT & IDT 初始化**:
+* `gdt_init()`: 建立新的 GDT，定义内核代码段/数据段、用户代码段/数据段以及 **TSS**。
+* `idt_init()`: 建立中断描述符表，重映射 PIC (8259A)，注册异常处理函数（如 Page Fault）和系统调用（Int 0x80）。
+
+
+2. **NX 位开启**: 调用 `enable_nx()` 开启页表不可执行位支持，防止缓冲区溢出攻击。
+3. **内存管理初始化 (`mm_init`)**:
+* **PMM**: 解析 Limine Memmap，初始化物理页分配器（位图法）。
+* **Paging**: 创建内核自己的 PML4 页表 (`kernel_pml4`)，映射内核代码、HHDM 区域。**关键动作：切换 CR3 到内核页表。**
+* **Heap**: 初始化内核堆 (`kmalloc`)。
+* **Stack**: 重新分配并切换到一个更大的内核栈。
+
+
+4. **进程子系统初始化 (`proc_init`)**:
+* 创建 **Idle 进程 (PID 0)**。这是系统第一个 PCB，代表内核主循环。
+* 设置 `current_proc = idle`。
+
+
+5. **加载初始用户程序**:
+* 从 Limine Module 请求中获取 `init` 程序（ELF 格式）的数据。
+* 调用 `init_userproc()` -> `create_user_process()`。
+
+
+
+### 阶段三：第一个用户进程的创建 (`create_user_process`)
+
+这是 OS 最复杂的环节之一，涉及内存视图的构建和 ELF 加载。
+
+1. **分配 PCB**: `alloc_new_pcb()` 分配内存，PID = 1。
+2. **创建地址空间 (`mm_alloc`)**:
+* 分配一个新的 PML4。
+* **复制内核映射**: 将内核的高半核映射（256-511 项）复制到新页表。保证陷入内核时能访问内核代码。
+
+
+3. **加载 ELF (`load_elf`)**:
+* **临时切换页表**: 执行 `lcr3(proc->mm->pml4_pa)`。因为我们要往用户地址（如 `0x400000`）写数据，必须激活目标页表。
+* **解析 Segment**: 遍历 ELF Program Header，找到 `PT_LOAD` 段。
+* **映射内存**: `mm_map_range` 分配物理页并映射到虚拟地址（设置 `VM_WRITE` 权限）。
+* **拷贝数据**: `memcpy` 将指令和数据从 ELF 镜像拷贝到物理内存。
+* **恢复页表**: 切回原来的 CR3。
+
+
+4. **分配栈**:
+* **用户栈**: 映射 `USER_STACK_TOP` 向下的区域。
+* **内核栈**: `kstack_init` 分配 16KB，用于该进程在内核态执行（中断/Syscall）。
+
+
+5. **构建伪造的上下文 (Context Forging)**:
+* 我们需要“欺骗”调度器，让它以为这个进程是“被暂停”的。
+* 在内核栈顶构建 `context_t`。
+* `context->rip` = `user_entry` (一个汇编跳板函数)。
+* `context->r12` = ELF 入口点 (e.g., `0x400000`)。
+* `context->r13` = 用户栈顶。
+* `proc->context` 指向这个伪造的栈顶。
+
+
+6. **入队**: 将 PID 1 加入 `ready_queue`。
+
+### 阶段四：从内核态跳跃到用户态 (The Context Switch)
+
+此时，CPU 还在运行 `kmain` 的 `idle` 线程。
+
+1. **开启中断**: `kmain` 调用 `sti`。
+2. **触发调度**: `kmain` 调用 `schedule()`。
+3. **上下文切换 (`switch_to`)**:
+* 调度器选中 PID 1。
+* **切换 CR3**: 加载 PID 1 的页表。此时用户空间的映射（0x400000 等）变得可见。
+* **切换 TSS RSP0**: 设置 `tss.rsp0` 为 PID 1 的内核栈底。**这至关重要**，否则下次中断发生时 CPU 无处保存状态。
+* `switch_to` 保存 Idle 的寄存器，加载 PID 1 的寄存器。
+* `ret` 指令弹出 `rip`。此时 CPU 跳转到 `user_entry`。
+
+
+4. **执行跳板函数 (`user_entry`)**:
+* 从 `r12` 读取 ELF 入口地址。
+* 从 `r13` 读取用户栈地址。
+* 调用 `enter_user_mode(entry, stack)`。
+
+
+5. **特权级切换 (`iretq`)**:
+* `enter_user_mode` 手动在栈上构建 **中断返回帧 (Interrupt Return Stack Frame)**：
+* `SS` (User Data Selector, 0x23)
+* `RSP` (用户栈顶)
+* `RFLAGS` (开启 IF 中断位)
+* `CS` (User Code Selector, 0x1B)
+* `RIP` (ELF 入口点)
+
+
+* 执行 `iretq`。
+* **CPU 硬件动作**: 从栈中弹出上述值，将 `CPL` (当前特权级) 从 0 变为 3，跳转到用户代码。
+
+
+
+**至此，第一个用户进程 `init` 开始运行，屏幕打印 "Hello, User World!"。**
+
+---
+
+## 3. 系统调用路径 (System Call Path)
+
+当用户程序调用 `print` 时：
+
+1. **用户态**: 执行 `int 0x80` 指令。
+2. **硬件**:
+* 检查 IDT 第 128 项。
+* 切换到 Ring 0。
+* 从 TSS 读取 `RSP0`，切换到内核栈。
+* 压入用户态的 SS, RSP, RFLAGS, CS, RIP。
+
+
+3. **内核态 (`isr_stub` -> `isr_handler`)**:
+* `pushall` 保存通用寄存器。
+* 调用 C 函数 `syscall_handler`。
+* 根据 `rax` 执行逻辑（如 `kprint`）。
+
+
+4. **返回**:
+* `popall` 恢复寄存器。
+* `iretq` 返回用户态。
+
+
+
+---
+
+## 4. 内存布局图示
+
+```text
++-------------------------+ 0xFFFFFFFF FFFFFFFF
+|                         |
+|       Kernel Image      | .text, .data (Higher Half)
+|                         |
++-------------------------+ 0xFFFF8000 00000000 (HHDM Start)
+|                         |
+|      Direct Map (HHDM)  | 所有物理内存的直接映射
+|                         |
++-------------------------+ 
+|           ...           |
++-------------------------+ 0x00007FFF FFFFFFFF (User Space End)
+|                         |
+|       User Stack        | 0x00000000 80000000 (向下生长)
+|           |             |
+|           v             |
+|                         |
+|           ^             |
+|           |             |
+|       User Heap         | (动态分配)
+|                         |
++-------------------------+
+|       User Code         | 0x00000000 00400000 (ELF Load Addr)
++-------------------------+ 0x00000000 00000000
+
+```

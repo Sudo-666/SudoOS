@@ -26,6 +26,7 @@ struct vma_struct {
 // 代表了一个进程完整的虚拟地址空间。
 struct mm_struct {
     pg_table_t* pml4;       // 该进程的顶级页表指针
+    uint64_t pml4_pa;      // 该页表的物理地址
     list_node_t vma_list;   // 串联了该进程拥有的所有 VMA (虚拟内存区域)。
     int map_count;          // vma的数量
     int ref_count;          // 记录有多少个PCB正在引用这个mm
@@ -36,6 +37,9 @@ struct mm_struct {
     uint64_t start_heap, heap;       // 堆边界
     uint64_t start_stack;          // 栈起始位置
 };
+
+typedef struct mm_struct mm_struct_t;
+typedef struct vma_struct vma_struct_t;
 
 /**
  * 虚拟地址空间 (mm_struct 描述)
@@ -62,3 +66,33 @@ struct mm_struct {
  */
 
 // 代表了地址空间中一段连续的区域（如代码段、栈、堆）
+
+/**
+ * @brief 分配并初始化一个新的 mm_struct 结构体
+ */
+mm_struct_t* mm_alloc();
+
+/**
+ * @brief 释放一个 mm_struct 结构体及其相关资源
+ * @param mm
+ */
+void mm_free(mm_struct_t* mm);
+
+/**
+ * @brief 在指定的 mm_struct 地址空间中映射一段虚拟地址范围
+ * @param mm 目标地址空间
+ * @param va 虚拟地址起始位置
+ * @param size 映射大小（字节）
+ * @param flags 映射标志（如 PTE_RW, PTE_USER 等）
+ * @return true 映射成功，false 映射失败
+ */
+bool mm_map_range(mm_struct_t* mm,uintptr_t va,uintptr_t size,uint64_t flags);
+
+/**
+ * @brief 复制地址空间：src -> dst
+ * @param dst 目标地址空间
+ * @param src 源地址空间
+ * @return true 复制成功，false 复制失败
+ */
+bool mm_copy(mm_struct_t* dst, mm_struct_t* src);
+
