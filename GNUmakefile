@@ -120,9 +120,10 @@ usr/usrmain.o: usr/usrmain.c
 
 usr/bin/user.bin: usr/usrmain.o
 	@mkdir -p usr/bin
-	# 显式指定 entry 为 usrmain，并确保输入文件是上一步生成的 usrmain.o
-	$(USER_LD) -Ttext 0x1000000 -e usrmain usr/usrmain.o -o usr/bin/user.elf
-	$(USER_OBJCOPY) -O binary -j .text -j .data -j .rodata usr/bin/user.elf $@
+	# 1. -Ttext 0x400000: 设置虚拟地址起始点 (与你的 load_elf 逻辑对应)
+	# 2. -e usrmain: 指定入口函数
+	# 3. 直接输出为 user.bin (它现在是一个 ELF 格式的文件)
+	$(USER_LD) -Ttext 0x400000 -e usrmain usr/usrmain.o -o $@
 
 # ISO镜像构建
 $(IMAGE_NAME).iso: boot/limine kernel usr/bin/user.bin limine.conf

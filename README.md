@@ -626,21 +626,14 @@ struct mm_struct {
 // ================= API =================
 
 // 1. 创建一个新的地址空间 (用于 fork 或 exec)
-struct mm_struct *mm_create();
+struct mm_struct * mm_alloc();
 
 // 2. 销毁地址空间 (用于 exit)
 void mm_free(struct mm_struct *mm);
 
-// 3. 切换地址空间 (用于 context switch)
-// 其实就是 lcr3(mm->pml4_pa)
-void mm_switch(struct mm_struct *mm);
-
 // 4. 在地址空间中映射一段区域 (用于 load_elf)
 // 包含：申请 VMA + 申请物理页 + 修改页表映射
 bool mm_map_range(struct mm_struct *mm, uint64_t va, size_t size, uint64_t vm_flags);
-
-// 5. 查找包含地址 va 的 VMA (用于缺页异常处理)
-struct vma_struct *find_vma(struct mm_struct *mm, uint64_t va);
 
 ```
 
@@ -658,36 +651,11 @@ x86_64 虚拟地址高半部分（`0xFFFF800000000000` 以上）是内核空间�
 
 **实现逻辑**：
 
-```c
-struct mm_struct *mm_create() {
-    struct mm_struct *mm = (struct mm_struct *)kmalloc(sizeof(struct mm_struct));
-    memset(mm, 0, sizeof(struct mm_struct));
-    list_init(&mm->vma_list);
+1. 分配一个新的 PML4 页 (物理页)
+2. 获取其虚拟地址 (通过 HHDM) 以便写入
+3. 清空用户空间部分 (0~255)
+4. 拷贝内核空间映射 (256~511)
 
-    // 1. 分配一个新的 PML4 页 (物理页)
-    uint64_t pml4_pa = pmm_alloc_page();
-    if (pml4_pa == 0) {
-        kfree(mm);
-        return NULL;
-    }
-    
-    // 2. 获取其虚拟地址 (通过 HHDM) 以便写入
-    mm->pml4_pa = pml4_pa;
-    mm->pml4 = (pg_table_t*)(pml4_pa + HHDM_OFFSET);
-    
-    // 3. 清空用户空间部分 (0~255)
-    memset(mm->pml4, 0, 256 * sizeof(uint64_t));
-
-    // 4. 【核心】拷贝内核空间映射 (256~511)
-    // kernel_pml4 是你在 paging_init 中创建的全局内核页表
-    for (int i = 256; i < 512; i++) {
-        mm->pml4->entries[i] = kernel_pml4->entries[i];
-    }
-
-    return mm;
-}
-
-```
 
 ### 4.2 实现 `mm_map_range`
 
@@ -738,116 +706,9 @@ bool mm_map_range(struct mm_struct *mm, uint64_t va_start, size_t size, uint64_t
 
 当进程退出时，需要释放其占用的资源：
 
-1. 遍历 VMA，释放 VMA 结构体。
-2. (对于立即映射模式) 遍历 VMA 覆盖的地址，释放对应的物理页 (`pmm_free_page`)。
-3. 释放页表本身占用的物理页 (PML4, PDPT, PD, PT)。这一步比较繁琐，需要递归释放。
-
-**简化版实现思路**：
-
-```c
-void free_page_table_level(pg_table_t* table, int level) {
-    // level 4=PML4, 3=PDPT, 2=PD, 1=PT
-    for (int i = 0; i < 512; i++) {
-        pte_t entry = table->entries[i];
-        if (entry & PTE_PRESENT) {
-            uint64_t pa = PTE_GET_ADDR(entry);
-            // 如果不是最后一级，递归释放下一级页表
-            if (level > 1) {
-                // 注意：需要通过 HHDM 转换 pa 到 va 才能访问
-                free_page_table_level((pg_table_t*)(pa + HHDM_OFFSET), level - 1);
-            }
-            
-            // 只有当 level == 1 时，PA 指向的才是用户数据的物理页
-            // 但通常我们根据 VMA 来释放数据页，这里只负责释放页表结构本身占用的页
-            if (level > 1) {
-                pmm_free_page(pa); // 释放页表页
-            }
-        }
-    }
-}
-
-void mm_destroy(struct mm_struct *mm) {
-    if (!mm) return;
-
-    // 1. 释放 VMA 和用户物理内存
-    list_node_t *curr = mm->vma_list.next;
-    while (curr != &mm->vma_list) {
-        struct vma_struct *vma = container_of(curr, struct vma_struct, list_node);
-        list_node_t *next = curr->next;
-        
-        // 遍历该 VMA 每一页，查页表，释放物理页
-        for (uint64_t va = vma->vm_start; va < vma->vm_end; va += PAGE_SIZE) {
-             pte_t *pte = vmm_get_pte(mm->pml4, va);
-             if (pte && (*pte & PTE_PRESENT)) {
-                 pmm_free_page(PTE_GET_ADDR(*pte));
-             }
-        }
-        
-        kfree(vma);
-        curr = next;
-    }
-
-    // 2. 释放页表结构 (只释放用户空间的页表，不碰内核空间)
-    // 我们的用户空间是 PML4 的前 256 项
-    // 这里需要写一个专门只遍历 0~255 项的递归释放函数，避免释放了内核页表
-    for (int i = 0; i < 256; i++) {
-        if (mm->pml4->entries[i] & PTE_PRESENT) {
-            uint64_t pa = PTE_GET_ADDR(mm->pml4->entries[i]);
-            free_page_table_level((pg_table_t*)(pa + HHDM_OFFSET), 3); // 从 PDPT 开始递归
-            pmm_free_page(pa); // 释放 PDPT 表本身
-        }
-    }
-
-    // 3. 释放 PML4 本身
-    pmm_free_page(mm->pml4_pa); // 注意用物理地址释放
-    kfree(mm);
-}
-
-```
-
----
-
-## 5. 辅助函数补充
-
-你需要修改/补充 `src/mm/paging.c` 中的一些函数以支持上述操作。
-
-**补充 `vmm_get_pte**` (用于查询 PTE，而不是创建)
-
-```c
-pte_t* vmm_get_pte(pg_table_t* pml4, uintptr_t va) {
-    uint64_t idx4 = PML4_IDX(va);
-    uint64_t idx3 = PDPT_IDX(va);
-    uint64_t idx2 = PD_IDX(va);
-    uint64_t idx1 = PT_IDX(va);
-
-    pg_table_t* pdpt = get_next_table(pml4, idx4, false, 0); // false = 不分配
-    if (!pdpt) return NULL;
-    pg_table_t* pd = get_next_table(pdpt, idx3, false, 0);
-    if (!pd) return NULL;
-    pg_table_t* pt = get_next_table(pd, idx2, false, 0);
-    if (!pt) return NULL;
-
-    return &pt->entries[idx1];
-}
-
-```
-
-## 6. 与现有系统的集成点
-
-1. **在 `process_create_user` 中调用**：
-* 调用 `mm_create()` 获取新页表。
-* 暂时 `lcr3(mm->pml4_pa)` 切换过去。
-* 调用 `load_elf`，内部调用 `mm_map_range` 加载代码和数据。
-* 调用 `mm_map_range` 分配用户栈。
-* 切回内核页表（或者保持，如果在调度器里处理好了）。
-
-
-2. **在 `schedule` 中修改**：
-* 你需要修改 `src/proc/sche.c`。
-* 当 `prev->mm != next->mm` 时，执行 `lcr3(next->mm->pml4_pa)`。
-* 注意：内核线程（如 idle）通常 `mm` 为 NULL。如果切到内核线程，通常不需要切 CR3（复用上一个进程的内核映射），或者切回 `kernel_pml4`。建议简单的策略：如果 `next->mm` 存在，就切；如果不存在（内核线程），就用 `kernel_pml4`。
-
-
+ 1. 释放 VMA 和用户物理内存
+ 2. 释放页表结构
+ 3. 释放 PML4 本身
 
 ---
 

@@ -80,6 +80,14 @@ static void hcf(void)
     }
 }
 
+#define MSR_EFER 0xC0000080
+#define EFER_NXE (1 << 11)
+void enable_nx() {
+    uint64_t efer = rdmsr(MSR_EFER);
+    // 开启 No-Execute Enable 位
+    wrmsr(MSR_EFER, efer | EFER_NXE);
+}
+
 void mm_init() {
     kprintln("Initializing Memory Management Subsystem...");
     // 获取memmap
@@ -132,23 +140,27 @@ void kernel_init() {
     kprintln("IDT initialized.");
     init_keyboard();
 
+    //在 CPU 的 EFER 寄存器中启用 NX 功能 (EFER.NXE)。
+    enable_nx();
     // 初始化内存管理子系统
     mm_init();
     kprintln("Switched to new kernel stack done!");
 
     proc_init();
+    // 开启时钟中断，启动调度
+    init_timer(20);
 }
 
 
 void thread_a(void* arg) {
-    for(int i=1;i<=1000000;i++) {
+    for(int i=1;i<=10000;i++) {
         kprintf("A");
         for(int j=0;j<1000000;j++); // 简单延时
     }
 }
 
 void thread_b(void* arg) {
-    for(int i=1;i<=1000000;i++) {
+    for(int i=1;i<=10000;i++) {
         kprintf("B");
         for(int j=0;j<1000000;j++); // 简单延时
     }
@@ -182,59 +194,20 @@ void debug_proc() {
 void kmain(void) {
     
     kernel_init();
-    // // 2. 获取模块响应
-    // struct limine_module_response *module_response = module_request.response;
-    // if (module_response == NULL || module_response->module_count < 1) {
-    //     kprintln("Error: No modules loaded! Check limine.cfg");
-    //     hcf();
-    // }
-    // struct limine_file *user_file = module_response->modules[0]; // 获取第一个模块
-    // kprintf("Module found at: %lx, Size: %ld\n", user_file->address, user_file->size);
-
-    // kprintln("Preparing to run usrmain in User Mode...");
-
-    // // 3. 映射并拷贝用户代码
-    // uint64_t user_code_va = 0x1000000;
-
-    // size_t file_pages = (user_file->size + PAGE_SIZE - 1) / PAGE_SIZE;
     
-    // for(size_t i=0; i < file_pages; i++) {
-    //     uint64_t pg_pa = pmm_alloc_page();
-        
-    //     // 映射
-    //     vmm_map_page(kernel_pml4, user_code_va + i*PAGE_SIZE, pg_pa, PTE_PRESENT | PTE_RW | PTE_USER);
-        
-    //     // 拷贝 (通过 HHDM 计算目标地址)
-    //     extern uint64_t HHDM_OFFSET;
-    //     void* dst = (void*)(pg_pa + HHDM_OFFSET);
-        
-    //     // 计算本页拷贝大小
-    //     size_t cp_len = PAGE_SIZE;
-    //     if(i == file_pages -1) cp_len = user_file->size % PAGE_SIZE;
-    //     if(cp_len == 0) cp_len = PAGE_SIZE;
-        
-    //     // 从模块地址拷贝 (Limine HHDM地址可以直接读)
-    //     memcpy(dst, (void*)(user_file->address + i*PAGE_SIZE), cp_len);
-    // }
+    struct limine_file* init_file = module_request.response->modules[0];
     
-    // kprintln("User program loaded at 0x1000000");
+    // 创建第一个进程
+    init_userproc(init_file);
+    __asm__ volatile ("sti");
 
-    // // 4. 映射栈 (保持不变)
-    // uint64_t user_stack_va = 0x80000000; 
-    // uint64_t stack_pa = pmm_alloc_page();
-    // vmm_map_page(kernel_pml4, user_stack_va, stack_pa, PTE_PRESENT | PTE_RW | PTE_USER);
+    schedule(); 
 
-    // // 5. 跳转
-    // kprintln("Switching to Ring 3...");
-    // enter_user_mode(user_code_va, user_stack_va + PAGE_SIZE);
-
-    // // 如果成功，代码不会运行到这里
-    // kprintln("ERROR: Switch failed!");
-    init_timer(20); // 设置频率为 20Hz (每秒切换20次)
-    extern pcb_t* current_proc;
-    kthread_create(current_proc,"thread_a",thread_a, NULL);
-    kthread_create(current_proc,"thread_b",thread_b, NULL);
-    debug_proc();
+    // 如果 schedule() 返回了，说明没有其他进程可运行，或者被抢占回来了
+    kprintln("Back in kmain loop");
+    while (1) {
+        __asm__ volatile ("hlt");
+    }
     hcf();
  
 }

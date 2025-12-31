@@ -112,6 +112,24 @@ pg_table_t *get_next_table(pg_table_t *pgtable, uint64_t index, bool allocate, u
  */
 void vmm_map_page(pg_table_t *pml4, uintptr_t va, uintptr_t pa, uint64_t flags);
 
+/**
+ * @brief 初始化分页机制，建立内核页表并加载到 CR3
+ * @param mmap 指向 Limine 提供的内存映射响应结构体
+ */
 void paging_init(struct limine_memmap_response *mmap);
 
+/**
+ * @brief 获取虚拟地址对应的页表项指针
+ * @param pml4 顶级页表虚拟地址
+ * @param va 虚拟地址
+ * @return pte_t* 页表项指针，找不到则返回 NULL
+ */
 pte_t *vmm_get_pte(pg_table_t *pml4, uintptr_t va);
+
+/**
+ * @brief 释放一个页表及其所有下级页表
+ * @param table 页表虚拟地址
+ * @param level 页表级别 (4 = PML4, 3 = PDPT, 2 = PD, 1 = PT)
+ * 
+ */
+void user_pgtable_free_recursive(pg_table_t* table, int level);

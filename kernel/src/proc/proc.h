@@ -2,6 +2,8 @@
 #include "../arch/trap.h"
 #include "../drivers/console.h"
 #include "../mm/vmm.h"
+#include "../lib/elf.h"
+
 #define PROCNAME_LEN 32
 #define KSTACK_SIZE 0x4000    // 16KB
 
@@ -70,3 +72,32 @@ void kthread_exit(int exit_code);
  * @param proc 指向要释放的 PCB 结构体
  */
 void free_proc(pcb_t *proc);
+
+uint64_t load_elf(pcb_t *proc, const char *elf_data);
+
+// 定义用户栈的位置和大小
+#define USER_STACK_TOP  0x80000000  // 2GB 处
+#define USER_STACK_SIZE (4 * PAGE_SIZE) // 16KB
+
+
+/**
+ * @brief 用户程序入口点（汇编实现）
+ */
+void user_entry();
+
+/**
+ * @brief 创建一个用户进程
+ * @param name 进程名称
+ * @param elf_data 指向 ELF 文件数据的指针
+ * @param size ELF 文件大小
+ * @return pcb_t* 指向新创建的用户进程的 PCB 结构体
+ */
+pcb_t *create_user_process(const char *name, void *elf_data,uint64_t size);
+
+/**
+ * @brief fork 系统调用实现
+ * @return 子进程的 PID（父进程返回子进程 PID，子进程返回 0）
+ */
+int sys_fork();
+
+void init_userproc(struct limine_file* init_file);

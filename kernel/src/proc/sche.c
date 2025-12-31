@@ -43,7 +43,7 @@ void schedule() {
         list_del(next_node); // 从队列中移除
         next = container_of(next_node, pcb_t, sched_node);
     }
-
+    kprintf("[SCHED] Current PID: %d, Next PID: %d\n", prev->pid, next->pid);
     // 4. 执行上下文切换
     if(prev != next) {
         next->proc_state = PROC_RUNNING;
@@ -53,11 +53,11 @@ void schedule() {
         next->time_slice = TIME_SLICE_DEFAULT;
 
         // 更新 TSS 中的内核栈指针 (用于 Ring 3 -> Ring 0 的栈切换)
-        set_tss_stack(next->rsp); 
+        set_tss_stack(next->kstack_base + KSTACK_SIZE);
 
         // 切换页表 (如果需要，通常用于用户进程)
         if(next->mm != NULL && (prev->mm == NULL || prev->mm != next->mm)) {
-            lcr3((uintptr_t)next->mm->pml4);
+            lcr3(next->mm->pml4_pa);
         }
 
         // 汇编级上下文切换
