@@ -150,33 +150,132 @@ void console_scroll(int lines) {
     console_refresh();
 }
 
+
+
+// void kprint_char(char c) {
+//     // 1. 处理特殊字符
+//     if (c == '\n') {
+//         g_cursor_x = 0;
+//         g_cursor_y++;
+//         g_view_offset = 0; // 强制回到最新
+        
+//         // 性能关键：只有当这一行写满导致屏幕滚动时，才可能需要重绘
+//         // 但为了简单，如果此时在屏幕底部，我们还是需要重绘或者滚屏
+//         // 为了避免全屏重绘，通常做法是 memcpy 显存上移，然后清空最后一行。
+//         // 这里暂时用 refresh，因为换行频率远低于打字频率。
+//         if (g_cursor_y >= g_screen_rows) {
+//              console_refresh(); 
+//         }
+//         return;
+//     } 
+    
+//     if (c == '\b') {
+//         if (g_cursor_x > 0) {
+//             g_cursor_x--;
+//             history_buffer[g_cursor_y][g_cursor_x] = ' '; // 清除 Buffer
+//             // 如果正在看最新，立即擦除屏幕
+//             if (g_view_offset == 0) {
+//                 // 计算当前行在屏幕上的位置
+//                 int screen_y = g_cursor_y; 
+//                 if (g_cursor_y >= g_screen_rows) {
+//                     screen_y = g_screen_rows - 1;
+//                 }
+//                 draw_char_on_screen(g_cursor_x, screen_y, ' ');
+//             }
+//         }
+//         return;
+//     }
+
+//     // 2. 写入 Buffer
+//     if (c >= ' ' && c <= '~') {
+//         history_buffer[g_cursor_y][g_cursor_x] = c;
+        
+//         // 3. 性能关键：增量绘制！
+//         // 只有当用户正在看最新内容（没翻页）时，直接把字画在屏幕上
+//         // 否则只写 Buffer，不画图
+//         if (g_view_offset == 0) {
+//             // 计算屏幕 Y 坐标
+//             // 如果总行数还没填满屏幕，屏幕Y = cursor_y
+//             // 如果已经填满滚动了，屏幕Y = 屏幕底部 (rows-1)
+//             int screen_y = g_cursor_y;
+//             if (g_cursor_y >= g_screen_rows) {
+//                 screen_y = g_screen_rows - 1;
+//             }
+            
+//             // 直接画！
+//             draw_char_on_screen(g_cursor_x, screen_y, c);
+//         }
+
+//         // 4. 光标移动
+//         g_cursor_x++;
+//         if (g_cursor_x >= g_screen_cols) {
+//             // 自动换行
+//             g_cursor_x = 0;
+//             g_cursor_y++;
+//             if (g_cursor_y >= g_screen_rows) {
+//                 console_refresh(); // 换行导致滚屏，重绘
+//             }
+//         }
+//     }
+
+//     // 5. Buffer 循环/溢出处理
+//     if (g_cursor_y >= MAX_HISTORY) {
+//         // 满了，整体挪动 (这是最慢的情况，但在 100 行才发生一次)
+//         memcpy(history_buffer[0], history_buffer[1], (MAX_HISTORY - 1) * MAX_COLS);
+//         memset(history_buffer[MAX_HISTORY - 1], 0, MAX_COLS);
+//         g_cursor_y = MAX_HISTORY - 1;
+//         // 挪完 buffer 后必须重绘
+//         console_refresh();
+//     }
+// }
+
+// 辅助函数：处理历史缓冲区滚动
+static void check_history_scroll() {
+    if (g_cursor_y >= MAX_HISTORY) {
+        // 1. 整体上移一行
+        memcpy(history_buffer[0], history_buffer[1], (MAX_HISTORY - 1) * MAX_COLS);
+        // 2. 清空最后一行
+        memset(history_buffer[MAX_HISTORY - 1], 0, MAX_COLS);
+        // 3. 修正坐标
+        g_cursor_y = MAX_HISTORY - 1;
+        // 4. 立即刷新屏幕
+        console_refresh();
+    }
+}
+
 void kprint_char(char c) {
-    // 1. 处理特殊字符
+    // === 1. 处理换行 ===
     if (c == '\n') {
         g_cursor_x = 0;
         g_cursor_y++;
-        g_view_offset = 0; // 强制回到最新
+        g_view_offset = 0; // 强制回到最新视图
         
-        // 性能关键：只有当这一行写满导致屏幕滚动时，才可能需要重绘
-        // 但为了简单，如果此时在屏幕底部，我们还是需要重绘或者滚屏
-        // 为了避免全屏重绘，通常做法是 memcpy 显存上移，然后清空最后一行。
-        // 这里暂时用 refresh，因为换行频率远低于打字频率。
+        // 【关键修复】Y坐标增加后，立即检查是否需要滚动
+        check_history_scroll();
+
+        // 如果没有触发历史滚动，但超出了屏幕显示范围，也需要刷新
         if (g_cursor_y >= g_screen_rows) {
              console_refresh(); 
         }
         return;
     } 
     
+    // === 2. 处理退格 ===
     if (c == '\b') {
         if (g_cursor_x > 0) {
             g_cursor_x--;
-            history_buffer[g_cursor_y][g_cursor_x] = ' '; // 清除 Buffer
-            // 如果正在看最新，立即擦除屏幕
+            history_buffer[g_cursor_y][g_cursor_x] = ' ';
             if (g_view_offset == 0) {
-                // 计算当前行在屏幕上的位置
-                int screen_y = g_cursor_y; 
-                if (g_cursor_y >= g_screen_rows) {
-                    screen_y = g_screen_rows - 1;
+                // 简单计算屏幕Y坐标
+                int screen_y = g_cursor_y;
+                // 如果当前行已经滚出屏幕可视区，计算相对位置
+                // 这里简化处理：通常退格只在当前行，而当前行通常在屏幕底部
+                if (g_screen_rows > 0) { // 防止除0
+                     // 计算该行在屏幕上的相对行号
+                     // 公式：Buffer行 - (Buffer当前底行 - 屏幕行数 + 1)
+                     // 简化：如果 g_cursor_y 就在屏幕最底端
+                     int screen_bottom_row_idx = g_cursor_y; // 假设没回滚查看
+                     if (screen_bottom_row_idx >= g_screen_rows) screen_y = g_screen_rows - 1;
                 }
                 draw_char_on_screen(g_cursor_x, screen_y, ' ');
             }
@@ -184,46 +283,39 @@ void kprint_char(char c) {
         return;
     }
 
-    // 2. 写入 Buffer
+    // === 3. 处理普通字符 ===
     if (c >= ' ' && c <= '~') {
+        // 【安全检查】防止 g_cursor_y 异常导致越界写
+        if (g_cursor_y >= MAX_HISTORY) g_cursor_y = MAX_HISTORY - 1;
+
+        // 写入缓冲区
         history_buffer[g_cursor_y][g_cursor_x] = c;
         
-        // 3. 性能关键：增量绘制！
-        // 只有当用户正在看最新内容（没翻页）时，直接把字画在屏幕上
-        // 否则只写 Buffer，不画图
+        // 增量绘制
         if (g_view_offset == 0) {
-            // 计算屏幕 Y 坐标
-            // 如果总行数还没填满屏幕，屏幕Y = cursor_y
-            // 如果已经填满滚动了，屏幕Y = 屏幕底部 (rows-1)
             int screen_y = g_cursor_y;
+            // 如果历史行数超过屏幕行数，当前行在屏幕最底部
             if (g_cursor_y >= g_screen_rows) {
                 screen_y = g_screen_rows - 1;
             }
-            
-            // 直接画！
             draw_char_on_screen(g_cursor_x, screen_y, c);
         }
 
-        // 4. 光标移动
+        // 移动光标
         g_cursor_x++;
+        
+        // 自动换行处理
         if (g_cursor_x >= g_screen_cols) {
-            // 自动换行
             g_cursor_x = 0;
             g_cursor_y++;
+            
+            // 【关键修复】换行后立即检查滚动
+            check_history_scroll();
+            
             if (g_cursor_y >= g_screen_rows) {
-                console_refresh(); // 换行导致滚屏，重绘
+                console_refresh();
             }
         }
-    }
-
-    // 5. Buffer 循环/溢出处理
-    if (g_cursor_y >= MAX_HISTORY) {
-        // 满了，整体挪动 (这是最慢的情况，但在 100 行才发生一次)
-        memcpy(history_buffer[0], history_buffer[1], (MAX_HISTORY - 1) * MAX_COLS);
-        memset(history_buffer[MAX_HISTORY - 1], 0, MAX_COLS);
-        g_cursor_y = MAX_HISTORY - 1;
-        // 挪完 buffer 后必须重绘
-        console_refresh();
     }
 }
 
