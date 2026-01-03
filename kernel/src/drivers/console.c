@@ -56,10 +56,9 @@ static void put_pixel_scaled(int x, int y, uint32_t color) {
 static void draw_char_on_screen(int col, int row, char c) {
     if ((unsigned char)c > 127) return;
     
-    // 清除背景 (画黑色方块)
-    // 实际应用中可以优化，这里为了简单直接覆盖
+    // 【修复】使用 (unsigned char) 作为下标
+    const uint8_t* bmp = font8x8_basic[(unsigned char)c];
     
-    const uint8_t* bmp = font8x8_basic[(int)c];
     
     int pixel_base_x = col * FONT_W;
     int pixel_base_y = row * FONT_H;

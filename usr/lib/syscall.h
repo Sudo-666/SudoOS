@@ -1,5 +1,6 @@
 #ifndef _SYSCALL_H
 #define _SYSCALL_H
+#include <stdint.h>
 
 // ============================================================================
 //   SudoOS System Call Definitions (Linux x86_64 Compatible)
@@ -130,5 +131,37 @@
 // 参数: rdi=tv (timeval*), rsi=tz
 // 实现: 读取 RTC 或系统启动后的 tick 数并转换
 #define SYS_GETTIMEOFDAY 96
+
+// IO
+int read(int fd, void *buf, int count);
+int write(int fd, const void *buf, int count);
+int open(const char *pathname, int flags, int mode);
+int close(int fd);
+
+// 文件系统
+int getcwd(char *buf, unsigned long size);
+int chdir(const char *path);
+int getdents64(unsigned int fd, void *dirp, unsigned int count);
+int lseek(int fd, long offset, int whence);
+int fstat(int fd, void *statbuf);
+int stat(const char *filename, void *statbuf);
+
+// 进程
+int getpid(void);
+int getppid(void);
+int fork(void);
+int execve(const char *filename, char *const argv[], char *const envp[]);
+void exit(int status);
+int wait4(int pid, int *status, int options, void *rusage);
+int waitpid(int pid, int *status, int options);
+void sched_yield(void);
+
+// 内存
+void *brk(void *addr);
+void *sbrk(intptr_t increment);
+
+// 时间
+int nanosleep(const void *req, void *rem);
+unsigned int sleep(unsigned int seconds);
 
 #endif

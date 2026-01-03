@@ -43,7 +43,7 @@ void schedule() {
         list_del(next_node); // 从队列中移除
         next = container_of(next_node, pcb_t, sched_node);
     }
-    kprintf("[SCHED] Current PID: %d, Next PID: %d\n", prev->pid, next->pid);
+    // kprintf("[SCHED] Current PID: %d, Next PID: %d\n", prev->pid, next->pid);
     // 4. 执行上下文切换
     if(prev != next) {
         next->proc_state = PROC_RUNNING;

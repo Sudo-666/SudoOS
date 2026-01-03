@@ -6,6 +6,7 @@
 
 #define PROCNAME_LEN 32
 #define KSTACK_SIZE 0x4000    // 16KB
+#define MAX_FD 16
 
 
 typedef enum {
@@ -38,6 +39,7 @@ typedef struct pcb_t {
   struct pcb_t *parent;
   proc_state_t proc_state;
   char name[PROCNAME_LEN + 1];
+  void* fd_table[MAX_FD]; // 指向打开的 file 结构体
   int exit_code; // 退出码
 
 } pcb_t;

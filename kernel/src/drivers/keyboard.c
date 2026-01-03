@@ -46,12 +46,12 @@ void keyboard_handler(registers_t* regs) {
 
     // === 翻页控制 ===
     // PageUp (0x49) 或 '[' (0x1A) -> 上翻
-    if (scancode == 0x49 || scancode == 0x1A) {
+    if (scancode == 0x49) {
         console_scroll(10); 
         return;
     }
     // PageDown (0x51) 或 ']' (0x1B) -> 下翻
-    if (scancode == 0x51 || scancode == 0x1B) {
+    if (scancode == 0x51) {
         console_scroll(-10); 
         return;
     }
@@ -71,6 +71,9 @@ void keyboard_handler(registers_t* regs) {
 
 // 初始化键盘
 void init_keyboard() {
+    // 显式重置指针，防止残留数据导致“吞掉”第一个字符
+    r_ptr = 0;
+    w_ptr = 0;
     // 注册到 IRQ 1 (INT 33)
     register_interrupt_handler(33, keyboard_handler);
 
