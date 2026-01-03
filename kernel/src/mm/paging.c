@@ -87,7 +87,42 @@ static volatile struct limine_executable_address_request kernel_addr_request = {
     .revision = 0
 };
 
+pte_t* vmm_get_pte(pg_table_t* pml4, uintptr_t va) {
+    uint64_t idx4 = PML4_IDX(va);
+    uint64_t idx3 = PDPT_IDX(va);
+    uint64_t idx2 = PD_IDX(va);
+    uint64_t idx1 = PT_IDX(va);
 
+    pg_table_t* pdpt = get_next_table(pml4, idx4, false, 0);
+    if (pdpt == NULL) return NULL;
+    pg_table_t* pd = get_next_table(pdpt, idx3, false, 0);
+    if (pd == NULL) return NULL;
+    pg_table_t* pt = get_next_table(pd, idx2, false, 0);
+    if (pt == NULL) return NULL;
+
+    return &pt->entries[idx1];
+}
+
+// 递归释放用户页表及其对应的物理页
+void user_pgtable_free_recursive(pg_table_t* pgtable,int level)
+{
+    // 页表级别 (4 = PML4, 3 = PDPT, 2 = PD, 1 = PT)
+    int limit = (level == 4) ? 256 : 512;
+    for(int i=0;i<limit;i++) {
+        pte_t entry = pgtable->entries[i];
+        if(entry & PTE_PRESENT) {
+            if(level > 1) {
+                // 递归释放下一级页表
+                uintptr_t next_pa = PTE_GET_ADDR(entry);
+                pg_table_t* next_table = (pg_table_t*)pa2kva(next_pa);
+                user_pgtable_free_recursive(next_table, level - 1);
+            }
+            // 释放当前页表项对应的物理页
+            uintptr_t pa = PTE_GET_ADDR(entry);
+            pmm_free_page(pa);
+        }
+    }
+}
 
 
 void paging_init(struct limine_memmap_response* mmap) {
