@@ -1,6 +1,8 @@
 #include "idt.h"
 #include "../lib/std.h"
 #include "../drivers/drivers.h"
+#include "../proc/proc.h"
+#include "../proc/sche.h"
 
 isr_t interrupt_handlers[256];
 
@@ -11,28 +13,56 @@ void register_interrupt_handler(uint8_t n, isr_t handler)
 
 void syscall_handler(registers_t *regs)
 {
-    // System V ABI 传参规则 (用户态 -> 内核态):
-    // rax: 系统调用号
-    // rdi: 参数1
-    // rsi: 参数2
-    // rdx: 参数3
-    // ...
-
-    uint64_t syscall_num = regs->rax; // 获取功能号
+    // 获取寄存器参数 (遵循 System V ABI 约定)
+    uint64_t syscall_num = regs->rax; // 1. 号码
+    uint64_t arg1 = regs->rdi;        // 2. 参数1
+    uint64_t arg2 = regs->rsi;        // 3. 参数2
+    uint64_t arg3 = regs->rdx;        // 4. 参数3
 
     switch (syscall_num)
     {
+    // === SYS_READ (0) ===
+    // 用户态调用: read(fd, buf, count)
+    // 目标: 从键盘读取字符填入用户缓冲区
+    case 0: 
+    {
+        int fd = (int)arg1;
+        char *buf = (char *)arg2;
+        int count = (int)arg3;
+
+        // 目前只支持从标准输入 (STDIN = 0) 读取
+        if (fd == 0) 
+        {
+            int i = 0;
+            while(i < count) {
+                char c = keyboard_get_char(); 
+                if (c != 0) {
+                    buf[i++] = c;
+                    // 如果是回车，通常代表输入结束，可以提前返回
+                    if (c == '\n') break;
+                } else {
+                     __asm__ volatile("pause");
+                }
+            }
+            regs->rax = i; // 返回实际读取的字节数
+        }
+        else 
+        {
+            regs->rax = -1; // 不支持的文件描述符
+        }
+        break;
+    }
+
+    // === SYS_WRITE (1) ===
+    // 用户态调用: write(fd, buf, count)
     case 1:
     {
-        int fd = (int)regs->rdi;
-        char *user_str = (char *)regs->rsi;
-        int len = (int)regs->rdx;
-        if (len < 0)
-        {
-            regs->rax = -1;
-            break;
-        }
-        if (fd == 1)
+        int fd = (int)arg1;
+        char *user_str = (char *)arg2;
+        int len = (int)arg3;
+
+        // 支持标准输出(1) 和 标准错误(2)
+        if (fd == 1 || fd == 2)
         {
             for (int i = 0; i < len; i++)
             {
@@ -47,9 +77,40 @@ void syscall_handler(registers_t *regs)
         break;
     }
 
+    // === SYS_GETPID (39) ===
+    case 39:
+    {
+        extern pcb_t* current_proc;
+        regs->rax = current_proc->pid;
+        break;
+    }
+
+    // === SYS_YIELD (24) ===
+    case 24:
+    {
+        schedule(); // 主动让出 CPU
+        regs->rax = 0;
+        break;
+    }
+
+    // === SYS_EXIT (60) ===
+    case 60:
+    {
+        int status = (int)arg1;
+        kprintf("[Kernel] Process exiting with status %d\n", status);
+        
+        // 标记为僵尸进程，不再调度
+        extern pcb_t* current_proc;
+        current_proc->proc_state = PROC_ZOMBIE;
+        
+        schedule(); // 永不返回，直接切走
+        break;
+    }
+
+    // === 这里的 case 还没有实现，先打印日志方便调试 ===
     default:
-        kprintf("Unknown Syscall: %d\n", syscall_num);
-        regs->rax = -1; // 返回错误码
+        kprintf("[Kernel] Unimplemented Syscall: %d\n", syscall_num);
+        regs->rax = -1;
         break;
     }
 }
