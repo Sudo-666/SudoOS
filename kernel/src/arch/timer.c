@@ -17,8 +17,6 @@ void timer_callback(registers_t* regs) {
         }
     }
     
-    // 注意：EOI (End of Interrupt) 发送逻辑通常在 idt.c 的总 isr_handler 里做，
-    // 这里不需要重复发送，除非你的架构设计不同。
 }
 
 void init_timer(uint32_t frequency) {

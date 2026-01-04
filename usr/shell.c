@@ -107,7 +107,6 @@ void cmd_ls(char* path) {
         for (bpos = 0; bpos < nread;) {
             d = (struct linux_dirent64 *)(buf + bpos);
             
-            // 修正：去除 ANSI 颜色，使用符号区分目录
             if (d->d_type == 4) { // DT_DIR
                 printf("[%s]  ", d->d_name);
             } else {
@@ -130,7 +129,6 @@ void cmd_cd(char* path) {
     }
 }
 
-// === 核心功能：交互式 Run ===
 void cmd_run(char* arg_id) {
     if (!arg_id) { printf("Usage: run <syscall_id>\n"); return; }
     int id = atoi(arg_id);
@@ -138,8 +136,6 @@ void cmd_run(char* arg_id) {
     
     printf("--- Interactive Syscall Run [ID: %d] ---\n", id);
 
-    // 注意：这里依赖 lib/syscall.h 中定义的宏
-    // 如果 switch 中出现未定义的宏报错，请检查头文件
     switch(id) {
         case SYS_READ: 
         {
@@ -203,7 +199,7 @@ void cmd_run(char* arg_id) {
         {
             char buf[128];
             ret = raw_syscall(SYS_GETCWD, (uint64_t)buf, 128, 0, 0, 0);
-            if (ret != 0) printf("    CWD: %s\n", (char*)ret); // 注意：返回值处理需根据内核实现调整
+            if (ret != 0) printf("    CWD: %s\n", (char*)ret); 
             else printf("    Error (ret=0)\n");
             break;
         }

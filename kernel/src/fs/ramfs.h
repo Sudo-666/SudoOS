@@ -13,7 +13,6 @@ typedef struct {
     uint64_t size;      // 文件大小
     bool is_used;
     
-    // === 新增字段 ===
     int type;           // RAMFS_TYPE_FILE 或 RAMFS_TYPE_DIR
     int parent_idx;     // 父节点在数组中的下标 (-1 表示无父节点，即根目录)
     int inode_idx;      // 自身在数组中的下标 (方便回溯)

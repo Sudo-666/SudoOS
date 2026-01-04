@@ -147,9 +147,7 @@ void syscall_handler(registers_t *regs)
 
     case 8: // SYS_LSEEK (fd, offset, whence)
     {
-        // 极简实现：直接操作 file 结构体
-        // 注意：这需要你能访问 file_t 定义，建议在 ramfs.c 中增加 ramfs_lseek
-        // 这里为了简单，我们假设 ramfs_lseek 存在或者暂时返回错误
+        // 这里为了简单，假设 ramfs_lseek 存在或者暂时返回错误
         // ret = ramfs_lseek((int)arg1, (long)arg2, (int)arg3);
         ret = -1; // 暂时未实现，防止崩溃
         break;
@@ -167,7 +165,6 @@ void syscall_handler(registers_t *regs)
         }
         else
         {
-            // 调用我们在 ramfs.c 中新写的函数
             char *res = ramfs_getcwd(buf, size);
 
             // 按照 Linux 惯例，成功返回 buf 指针，失败返回 0
@@ -290,9 +287,6 @@ void syscall_handler(registers_t *regs)
         break;
 
     case 59: // SYS_EXECVE (filename, argv, envp)
-        // do_execve 内部已修改 ret 逻辑（通过修改 RIP），
-        // 如果成功，这里的 ret 值其实会被 iretq 覆盖（因为换了栈/上下文）
-        // 如果失败，返回 -1
         ret = do_execve((const char *)arg1, (const char **)arg2, (const char **)arg3);
         break;
 

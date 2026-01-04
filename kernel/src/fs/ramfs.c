@@ -8,7 +8,6 @@
 
 #define O_CREAT 64
 
-// ALIGN_UP 在 pmm.h 中已定义，这里不再重复定义
 
 // RAMFS 节点存储
 static ramfs_node_t files[MAX_FILES];

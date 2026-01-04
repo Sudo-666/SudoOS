@@ -23,7 +23,6 @@ int pid = fork();
     printf("Starting Shell...\n");
     shell_main();
 
-    // 理论上 shell_main 是死循环，不会运行到这里
     while(1);
     return 0;
 }
