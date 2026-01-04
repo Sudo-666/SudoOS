@@ -9,6 +9,7 @@
 #include "arch/x86_64.h"
 #include "proc/proc.h"
 #include "arch/timer.h"
+#include "fs/ramfs.h"
 
 extern pg_table_t *kernel_pml4;
 
@@ -149,6 +150,8 @@ void kernel_init() {
     proc_init();
     // 开启时钟中断，启动调度
     init_timer(20);
+
+    ramfs_init(0,0);
 }
 
 

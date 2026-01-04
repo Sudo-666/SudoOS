@@ -94,6 +94,9 @@ int stat(const char *filename, void *statbuf) {
     return (int)SYSCALL2(SYS_STAT, filename, statbuf);
 }
 
+int mkdir(const char *pathname, int mode) {
+    return (int)SYSCALL2(SYS_MKDIR, pathname, mode);
+}
 // ============================================================================
 // 4. 进程管理
 // ============================================================================

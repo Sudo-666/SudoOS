@@ -55,54 +55,105 @@ void puts(const char *s) {
 }
 
 // 核心 printf 实现
+
 void printf(const char *format, ...) {
-    va_list ap;
-    va_start(ap, format);
 
-    char buf[32]; // 临时缓冲区
+va_list ap;
 
-    while (*format) {
-        if (*format != '%') {
-            putchar(*format);
-            format++;
-            continue;
-        }
+va_start(ap, format);
 
-        format++; // 跳过 %
-        switch (*format) {
-            case 'c': {
-                // char 在 va_arg 里会提升为 int
-                char c = (char)va_arg(ap, int);
-                putchar(c);
-                break;
-            }
-            case 's': {
-                const char *s = va_arg(ap, const char *);
-                if (!s) s = "(null)";
-                while (*s) putchar(*s++);
-                break;
-            }
-            case 'd': {
-                int d = va_arg(ap, int);
-                itoa(buf, 10, d);
-                char *s = buf;
-                while (*s) putchar(*s++);
-                break;
-            }
-            case 'x': {
-                int d = va_arg(ap, int);
-                itoa(buf, 16, d);
-                char *s = buf;
-                while (*s) putchar(*s++);
-                break;
-            }
-            default:
-                putchar('%');
-                putchar(*format);
-                break;
-        }
-        format++;
-    }
 
-    va_end(ap);
+
+char buf[32]; // 临时缓冲区
+
+
+
+while (*format) {
+
+if (*format != '%') {
+
+putchar(*format);
+
+format++;
+
+continue;
+
+}
+
+
+
+format++; // 跳过 %
+
+switch (*format) {
+
+case 'c': {
+
+// char 在 va_arg 里会提升为 int
+
+char c = (char)va_arg(ap, int);
+
+putchar(c);
+
+break;
+
+}
+
+case 's': {
+
+const char *s = va_arg(ap, const char *);
+
+if (!s) s = "(null)";
+
+while (*s) putchar(*s++);
+
+break;
+
+}
+
+case 'd': {
+
+int d = va_arg(ap, int);
+
+itoa(buf, 10, d);
+
+char *s = buf;
+
+while (*s) putchar(*s++);
+
+break;
+
+}
+
+case 'x': {
+
+int d = va_arg(ap, int);
+
+itoa(buf, 16, d);
+
+char *s = buf;
+
+while (*s) putchar(*s++);
+
+break;
+
+}
+
+default:
+
+putchar('%');
+
+putchar(*format);
+
+break;
+
+}
+
+format++;
+
+}
+
+
+
+va_end(ap);
+
 }

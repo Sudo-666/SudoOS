@@ -58,6 +58,7 @@
 // 参数: rdi=path
 // 实现: 检查路径是否存在，更新进程 PCB 中的 cwd
 #define SYS_CHDIR   80
+#define SYS_MKDIR   83  
 
 // --- 内存管理 (核心 - 支撑 malloc) ---
 // 功能: 修改数据段大小 (Heap 堆边界)
@@ -132,6 +133,16 @@
 // 实现: 读取 RTC 或系统启动后的 tick 数并转换
 #define SYS_GETTIMEOFDAY 96
 
+
+struct linux_dirent64 {
+    uint64_t d_ino;
+    int64_t  d_off;
+    unsigned short d_reclen;
+    unsigned char  d_type;
+    char           d_name[];
+};
+
+
 // IO
 int read(int fd, void *buf, int count);
 int write(int fd, const void *buf, int count);
@@ -145,6 +156,7 @@ int getdents64(unsigned int fd, void *dirp, unsigned int count);
 int lseek(int fd, long offset, int whence);
 int fstat(int fd, void *statbuf);
 int stat(const char *filename, void *statbuf);
+int mkdir(const char *pathname, int mode);
 
 // 进程
 int getpid(void);

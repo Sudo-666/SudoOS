@@ -32,6 +32,7 @@ pcb_t *alloc_new_pcb() {
   new_pcb->proc_state = PROC_READY;
   new_pcb->exit_code = 0;
   new_pcb->total_runtime = 0;
+  new_pcb->cwd_inode = 0;
   return new_pcb;
 }
 
@@ -316,6 +317,7 @@ int sys_fork()
 {
   pcb_t* parent = current_proc;
   pcb_t* child = alloc_new_pcb();
+  child->cwd_inode = parent->cwd_inode;
   if(child == NULL) {
     return -1; // 分配失败
   }

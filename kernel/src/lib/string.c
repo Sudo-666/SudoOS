@@ -166,3 +166,59 @@ char *itoa_uint64(uint64_t value, char *buffer, uint64_t base){
 
     return buffer;
 }
+
+char *strtok_r(char *str, const char *delim, char **saveptr) {
+    char *token;
+
+    if (str == NULL) {
+        str = *saveptr;
+    }
+
+    // 1. 跳过开头的分隔符
+    while (*str) {
+        int is_delim = 0;
+        const char *d = delim;
+        while (*d) {
+            if (*str == *d) {
+                is_delim = 1;
+                break;
+            }
+            d++;
+        }
+        if (!is_delim) break;
+        str++;
+    }
+
+    // 如果字符串结束，返回 NULL
+    if (*str == '\0') {
+        *saveptr = str;
+        return NULL;
+    }
+
+    // 2. 找到 token 的起始位置
+    token = str;
+
+    // 3. 扫描直到遇到下一个分隔符
+    while (*str) {
+        int is_delim = 0;
+        const char *d = delim;
+        while (*d) {
+            if (*str == *d) {
+                is_delim = 1;
+                break;
+            }
+            d++;
+        }
+
+        if (is_delim) {
+            *str = '\0';      // 将分隔符替换为结束符
+            *saveptr = str + 1; // 保存下一次扫描的起始位置
+            return token;
+        }
+        str++;
+    }
+
+    // 字符串结束，保存位置并返回最后一个 token
+    *saveptr = str;
+    return token;
+}

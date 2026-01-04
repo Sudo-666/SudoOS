@@ -16,6 +16,7 @@ void *memcpy(void *dst, const void *src, size_t n);
 int memcmp(const void *a, const void *b, size_t n);
 char *itoa(int value, char *buffer, int base);
 char *itoa_uint64(uint64_t value, char *buffer, uint64_t base);
+char *strtok_r(char *str, const char *delim, char **saveptr);
 
 
 #endif // KERNEL_STRING_H

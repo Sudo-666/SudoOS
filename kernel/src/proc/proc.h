@@ -40,6 +40,7 @@ typedef struct pcb_t {
   proc_state_t proc_state;
   char name[PROCNAME_LEN + 1];
   void* fd_table[MAX_FD]; // 指向打开的 file 结构体
+  int cwd_inode;
   int exit_code; // 退出码
 
 } pcb_t;
