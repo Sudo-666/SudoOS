@@ -12,7 +12,7 @@
 
 // === 历史缓冲区 ===
 // 根据你的内存情况，这里保留 100 行历史
-#define MAX_HISTORY 100     
+#define MAX_HISTORY 1000     
 #define MAX_COLS 128        
 
 static char history_buffer[MAX_HISTORY][MAX_COLS];

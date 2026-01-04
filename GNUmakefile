@@ -27,6 +27,8 @@ ifeq ($(UNAME_S),Linux)  # Linux
 	USER_LD      := ld
 	USER_OBJCOPY := objcopy
 endif
+
+
 # 设置构建目标
 .PHONY: all
 all: $(IMAGE_NAME).iso
@@ -79,23 +81,37 @@ edk2-ovmf:
 	curl -L https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz | \
 	gunzip | tar -xf -
 
-# 克隆并编译Limine引导加载程序。
+# # 克隆并编译Limine引导加载程序。
+# boot/limine: 
+# 	@if [ ! -f boot/limine/limine ]; then \
+# 		mkdir -p boot; \
+# 		if [ ! -d boot/limine ]; then \
+# 			git clone https://codeberg.org/Limine/Limine.git boot/limine --branch=v8.x-binary --depth=1; \
+# 		else \
+# 			cd boot/limine && git reset --hard && git clean -fd; \
+# 		fi; \
+# 		$(MAKE) -C boot/limine \
+# 			CC="$(HOST_CC)" \
+# 			CFLAGS="$(HOST_CFLAGS)" \
+# 			CPPFLAGS="$(HOST_CPPFLAGS)" \
+# 			LDFLAGS="$(HOST_LDFLAGS)" \
+# 			LIBS="$(HOST_LIBS)"; \
+# 	else \
+# 		@echo "Limine already compiled, skipping..."; \
+# 	fi
 boot/limine: 
-	@if [ ! -f boot/limine/limine ]; then \
+	@if [ ! -d boot/limine ]; then \
+		echo "Downloading Limine v10.x-binary..."; \
 		mkdir -p boot; \
-		if [ ! -d boot/limine ]; then \
-			git clone https://codeberg.org/Limine/Limine.git boot/limine --branch=v8.x-binary --depth=1; \
-		else \
-			cd boot/limine && git reset --hard && git clean -fd; \
-		fi; \
+		git clone https://codeberg.org/Limine/Limine.git boot/limine --branch=v10.x-binary --depth=1; \
+	fi
+	@if [ ! -f boot/limine/limine ]; then \
 		$(MAKE) -C boot/limine \
 			CC="$(HOST_CC)" \
 			CFLAGS="$(HOST_CFLAGS)" \
 			CPPFLAGS="$(HOST_CPPFLAGS)" \
 			LDFLAGS="$(HOST_LDFLAGS)" \
 			LIBS="$(HOST_LIBS)"; \
-	else \
-		@echo "Limine already compiled, skipping..."; \
 	fi
 
 # 运行脚本获取内核依赖。
@@ -104,7 +120,7 @@ kernel/.deps-obtained:
 
 # 编译内核。
 .PHONY: kernel
-kernel:  kernel/.deps-obtained
+kernel:  kernel/.deps-obtained boot/limine
 	$(MAKE) -C kernel
 
 # =========================================================================

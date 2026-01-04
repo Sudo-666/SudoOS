@@ -3,6 +3,6 @@ boot/limine/
 kernel/bin
 kernel/obj
 kernel/deps
-
+usr/bin
 flake.lock
 .vscode/
