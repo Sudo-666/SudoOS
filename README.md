@@ -97,7 +97,88 @@ SudoOS/
         ├── string.c/h         # 用户态字符串库
         └── syscall.c/h        # 系统调用封装层 (syscall wrapper)
 
-## 5. 总结
+## 5.github提交记录
+
+由于本项目开发过程主要在github上，以下是github的提交记录。
+* **2026-01-04 18:52** - modify readme.md [a19ba9c]
+* **2026-01-04 18:21** - file 1.0updated use [9652a90]
+* **2026-01-04 18:11** - file 1.0updated [c20924e]
+* **2026-01-04 18:07** - file finished [330b102]
+* **2026-01-03 19:55** - Merge pull request #14 from Sudo-666/b1 [1dee968]
+* **2026-01-03 19:54** - shell first-char-no-display fixed [1a2d6d4]
+* **2026-01-03 17:29** - shell added [391073e]
+* **2026-01-03 14:54** - common update [6315773]
+* **2026-01-03 14:45** - more syscall funcs added [be6efae]
+* **2026-01-01 00:24** - Merge pull request #13 from Sudo-666/b1 [a547a7c]
+* **2026-01-01 00:22** - add docs [a5501c0]
+* **2026-01-01 00:17** - create user process [90fecd1]
+* **2025-12-30 19:32** - Merge branch 'main' into b1 [79c9936]
+* **2025-12-30 19:32** - add mm docs [5504d10]
+* **2025-12-30 19:30** - keyboard and console drivers updated [5956e3e]
+* **2025-12-30 19:13** - add proc docs [ebecb7f]
+* **2025-12-30 18:59** - Merge branch 'main' into b1 [9893083]
+* **2025-12-30 18:59** - add proc exit [f31c385]
+* **2025-12-30 18:47** - schedule() function and timer eoi logic corrected [c853b71]
+* **2025-12-30 17:50** - Merge pull request #12 from Sudo-666/b1 [7487bec]
+* **2025-12-30 17:49** - modify proc [e6790a9]
+* **2025-12-29 21:56** - Merge pull request #11 from Sudo-666/b1 [c172b1d]
+* **2025-12-29 21:53** - Merge branch 'main' into b1 [0364526]
+* **2025-12-29 21:51** - fix conflict [ef4f770]
+* **2025-12-29 21:47** - add proc and schedule [0f00d30]
+* **2025-12-29 21:45** - gdt and usr makefile  corrected [4746728]
+* **2025-12-29 18:54** - Merge pull request #10 from Sudo-666/b1 [e96c6e3]
+* **2025-12-29 18:51** - fix main and init proc [418d282]
+* **2025-12-29 13:32** - add flake in b1 [9d379f8]
+* **2025-12-29 13:30** - rm flake in main [6cfe89f]
+* **2025-12-29 13:25** - add my nixos-develoment flake config [f58c50d]
+* **2025-12-29 13:19** - add my nixos-develoment flake config [a89546d]
+* **2025-12-29 13:17** - add my nixos-develoment flake config [8be74a2]
+* **2025-12-29 13:16** - build linux dev env [603b641]
+* **2025-12-22 23:03** - Merge pull request #9 from Sudo-666/b1 [2b6ee2c]
+* **2025-12-22 23:00** - switched to user mode! and added docs [7cf7dec]
+* **2025-12-21 20:17** - merged [1f84ef6]
+* **2025-12-21 20:16** - nothing [c66512c]
+* **2025-12-21 20:15** - daily update [d3e54c7]
+* **2025-12-21 17:51** - gdt and basic timer added [1481683]
+* **2025-12-21 17:47** - Merge pull request #8 from Sudo-666/b1 [54e4865]
+* **2025-12-21 17:47** - add kstack init [2a1da05]
+* **2025-12-19 23:10** - Merge pull request #7 from Sudo-666/b1 [e9efed8]
+* **2025-12-19 22:46** - add kheap manager kmalloc & kfree [26e971a]
+* **2025-12-18 23:47** - add kaddr memory layout [fe06bf5]
+* **2025-12-18 14:37** - Merge branch 'main' into b1 merge idt [62295b8]
+* **2025-12-18 14:32** - update readme [a9504b0]
+* **2025-12-15 19:38** - Combination [8d6d1a6]
+* **2025-12-15 19:29** - 加入基本中断系统 [b92b624]
+* **2025-12-15 19:22** - 系统中断实现 [8a25179]
+* **2025-12-10 14:43** - add memlayout image [d7d5d13]
+* **2025-12-10 14:42** - add memlayout image [68d30c5]
+* **2025-12-10 14:33** - init paging [124113a]
+* **2025-12-10 14:32** - init paing [c8c54be]
+* **2025-12-08 23:00** - add alloc_page & free_page [59e52c9]
+* **2025-12-08 21:12** - Merge pull request #4 from Sudo-666/b1 [77fc2a1]
+* **2025-12-08 20:54** - kprintf function added [960c87b]
+* **2025-12-08 20:28** - add pmm_init [4b4c532]
+* **2025-12-05 22:39** - 重构 [ea8b834]
+* **2025-12-05 21:54** - pull latest [6218aa1]
+* **2025-12-05 21:51** - modify debugmm [cf3111e]
+* **2025-12-05 21:39** - partly uint64 functions added [8448b89]
+* **2025-12-05 21:05** - modify debugmm [f455a38]
+* **2025-12-05 20:26** - Merge pull request #2 from Sudo-666/b1 [1955985]
+* **2025-12-05 20:24** - finish conflict [91181ff]
+* **2025-12-05 20:21** - Merge branch 'b1' of github.com:Sudo-666/SudoOS into b1 [2abdb8e]
+* **2025-12-05 20:20** - kprint debug mmap done! [68689de]
+* **2025-12-05 20:17** - Remove ignored files from .gitignore [9ef8b21]
+* **2025-12-05 19:06** - kprint debug mmap done! [ab96d21]
+* **2025-12-02 21:53** - restructured [827401b]
+* **2025-12-02 21:48** - restructured [4f1b32c]
+* **2025-12-02 20:52** - add mac/linux platform for compile kern [c8681eb]
+* **2025-12-02 19:55** - a smallest kern [0193bcf]
+* **2025-12-01 19:20** - Daily init [334a12c]
+* **2025-12-01 18:46** - Update README.md [57534f6]
+* **2025-12-01 18:36** - Create README.md [8865eb7]
+* **2025-12-01 18:23** - First commit via HTTPS [607e082]
+
+## 6. 总结
 SudoOS 不仅仅是一个简单的教学内核，它是一个**麻雀虽小，五脏俱全**的现代化操作系统原型。从底层的四级页表到上层的 Shell 交互，从内核的内存分配到用户态的进程调度，每一行代码都体现了对计算机系统底层原理的精准把控和工程实践能力。
 
 
@@ -159,7 +240,7 @@ Shell 支持基础的文件系统操作和系统调用测试。
 | **cd** | `cd bin` | 切换当前目录。 |
 | **cat** | `cat README.txt` | 查看文件内容。 |
 | **clear** | `clear` | 清空屏幕（视觉清空，历史记录仍保留）。 |
-| **run** | `run 0` | **系统调用调试器**。交互式调用内核功能（如输入 0 测试 SYS_READ）。 |
+| **run** | `run <系统调用号>` | **系统调用调试器**。强烈推荐！可测试系统调用。交互式调用内核功能（如输入 0 测试 SYS_READ）。 |
 
 ### 3.3 调试技巧
 如果你在开发过程中需要调试内核：
