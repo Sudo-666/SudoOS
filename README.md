@@ -36,6 +36,7 @@ SudoOS 是一个**从零构建（From Scratch）**、面向现代 **x86-64 架�
 * **跨平台兼容**：支持 BIOS 与 UEFI 双模引导（通过 Limine），可在 QEMU 模拟器及真实物理机上运行。
 
 ## 4.项目结构树
+```
 SudoOS/
 ├── .gitignore                 # Git 版本控制忽略配置
 ├── flake.nix                  # Nix 环境配置文件（用于开发环境构建）
@@ -96,6 +97,7 @@ SudoOS/
         ├── stdlib.c/h         # 标准工具库 (malloc, atoi, exit)
         ├── string.c/h         # 用户态字符串库
         └── syscall.c/h        # 系统调用封装层 (syscall wrapper)
+```
 
 ## 5.github提交记录
 
@@ -1475,5 +1477,6 @@ Shell 支持以下常用命令：
 3.  **加载**: 根据段信息（FileSiz, MemSiz）调用 `mm_map_range` 分配物理页，并映射到用户虚拟地址空间。
 4.  **BSS 处理**: 如果 MemSiz > FileSiz，将多余部分（BSS）清零。
 5.  **入口跳转**: 读取 ELF Header 中的 Entry Point，设置为新进程上下文的 `rip`。
+
 
 ---
